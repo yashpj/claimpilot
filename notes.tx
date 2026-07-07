@@ -5,3 +5,11 @@
 "- packages:
   - "packages/*"
   these lines above under pnpm yaml files tells pnpm that every folder inside packages is its own package.
+- pnpm solves dependency linking
+- Nx solves building orchestration. Makes a graph to schedule and cache tasks
+- Quick way to hold it:
+
+Linking = "can this import find its target?" → package manager's job (pnpm).
+Orchestration = "given they're linked, in what order do I build, and what can I skip or cache?" → Nx's job.
+
+- Prisma's DX and migration tooling are more polished, but it hides SQL behind an engine and bloats the container. You chose SQL-proximity and lean images on purpose.
