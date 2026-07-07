@@ -1,0 +1,7 @@
+
+- pnpm = performant npm
+- keeps one global copy of dependencies for all projects on the disk. It saves space and time because we don't have to install them agian.
+- pnpm also has builtin support for monorepos via workspaces
+"- packages:
+  - "packages/*"
+  these lines above under pnpm yaml files tells pnpm that every folder inside packages is its own package.
