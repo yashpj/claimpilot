@@ -13,3 +13,39 @@ Linking = "can this import find its target?" → package manager's job (pnpm).
 Orchestration = "given they're linked, in what order do I build, and what can I skip or cache?" → Nx's job.
 
 - Prisma's DX and migration tooling are more polished, but it hides SQL behind an engine and bloats the container. You chose SQL-proximity and lean images on purpose.
+
+What NestJS even is (30 seconds)
+NestJS is a backend framework that imposes structure on a Node API — modules, classes, and a dependency-injection system — instead of the free-for-all of raw Express. It's heavily inspired by Angular's architecture. The tradeoff: more boilerplate and concepts up front, in exchange for a codebase that stays organized as it grows and is testable by design. That "testable by design" part is the senior payoff, and it comes almost entirely from DI, below.
+
+Alternative rejected: plain Express/Fastify. Less to learn, but you hand-wire everything and testing means manually stubbing dependencies. 
+
+A module is a box that groups related code for one domain — controllers, services, and providers that belong together.
+Why it matters: boundaries. ClaimsModule shouldn't reach into policy internals — it goes through PoliciesModule's exported surface. This keeps a 30-file codebase from becoming a mud ball where everything imports everything.
+
+Concept 2: Dependency Injection (the important one)
+This is the concept interviewers probe, so slow down here.
+The problem it solves. A ClaimsService needs a database connection. The naive way: the service creates its own connection inside itself (new Database(...)). Now that service is welded to a real database — you can't test it without a real DB, and you can't swap the DB for a fake. Its dependency is hardcoded.
+Dependency injection flips this: instead of a class creating its dependencies, they're handed to it from outside — through its constructor. The class just declares "I need a database" and Nest supplies it:
+ts@Injectable()
+export class ClaimsService {
+  constructor(private readonly db: DatabaseService) {}
+  //          ^ Nest sees this, finds the DatabaseService provider,
+  //            constructs it once, and injects it here automatically.
+}
+
+Provider — anything Nest can inject (usually a service). You register it in a module's providers.
+@Injectable() — decorator marking a class as injectable.
+Injection token — the key Nest uses to look up what to inject. Usually the class itself; sometimes a string (you'll see this in a second with Drizzle).
+
+Drizzle isn't a Nest-native library — it's just a function that returns a db client. To make it injectable everywhere via DI, you wrap it in a provider once, in one module, and export it.
+Every other module imports DatabaseModule and injects the db. One place owns the connection; nothing else calls drizzle() directly.
+
+Supabase Auth is a hosted service that manages signup/login and issues a JWT (JSON Web Token) on successful login. A JWT is a signed token the client sends with every request — signed meaning your backend can verify it wasn't tampered with using a secret, without calling Supabase on every request. The token carries the user's id and metadata in its payload.
+A guard in Nest is a class that runs before your route handler and returns true (allow) or false (block). It's the gatekeeper. Auth is the classic use: the guard inspects the incoming request, verifies the JWT, and either attaches the user and lets it through, or throws 401 Unauthorized.
+Why a guard and not just code inside each controller: it's cross-cutting. Every protected route needs the same check. Putting it in a guard means you write it once and apply it declaratively with @UseGuards() — no copy-pasting auth logic into 20 handlers.
+
+Alternative rejected: middleware. Nest has middleware too, but guards are purpose-built for authorization — they run in Nest's lifecycle after routing, so they know which handler and which roles are involved (via metadata), which plain middleware doesn't cleanly. Guards for "can this request proceed," middleware for "transform/log this request." Interviewer bait: "guard vs middleware?" — that's the distinction.
+
+One honest tradeoff in that code — I used supabase.auth.getUser(token), which makes a network call to Supabase to validate. The faster alternative is verifying the JWT signature locally with SUPABASE_JWT_SECRET (no network hop) using a library like jose. 
+Local verification is what you'd do at scale. I chose the network-call version here because it's simpler to get right and impossible to misconfigure — and for your demo's traffic, the latency is irrelevant.
+
