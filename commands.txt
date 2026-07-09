@@ -1,0 +1,3 @@
+docker compose logs -f postgres   # tail the DB logs — first place to look when it won't connect
+docker compose down               # stop containers, KEEP the volume (data survives)
+docker compose down -v            # stop AND delete the volume (nukes your data)

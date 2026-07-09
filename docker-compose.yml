@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: claimpilot-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: claimpilot
+      POSTGRES_PASSWORD: localdev
+      POSTGRES_DB: claimpilot
+    ports:
+      - "5433:5432"          # host:container — lets your Mac reach it
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U claimpilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

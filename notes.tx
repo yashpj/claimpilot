@@ -49,3 +49,11 @@ Alternative rejected: middleware. Nest has middleware too, but guards are purpos
 One honest tradeoff in that code — I used supabase.auth.getUser(token), which makes a network call to Supabase to validate. The faster alternative is verifying the JWT signature locally with SUPABASE_JWT_SECRET (no network hop) using a library like jose. 
 Local verification is what you'd do at scale. I chose the network-call version here because it's simpler to get right and impossible to misconfigure — and for your demo's traffic, the latency is irrelevant.
 
+auth.guard.ts = the imperative implementation. Written once. This is the "how."
+@UseGuards(AuthGuard) = the declarative application. Written per-route. This is the "what I want" — a label pointing at the how.
+
+@nestjs/config — the package name. The @nestjs/ prefix is a scope — it marks this as an official NestJS package (same family as @nestjs/common, @nestjs/core). Scopes group related packages under one namespace.
+
+What the package does — it's Nest's official configuration module. Its main job is reading your .env file and loading those values into process.env at startup, plus giving you ConfigService to access them through Nest's DI. 
+
+Declarative = you describe what you want, and the framework figures out how to do it. The opposite is imperative = you write out the step-by-step how yourself.
