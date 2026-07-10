@@ -1,0 +1,103 @@
+# CLAIMPILOT — PROJECT STATE
+
+> Paste this + `PROJECT_SPEC_Understand_insurance.md` into a new chat to resume with full context.
+
+## Working agreement (how to teach me)
+
+- I have intern/junior experience, targeting **senior** roles. Explain concepts (2–4 sentences) before code. Never just hand me working code.
+- Define jargon on first use. Name the rejected alternative for any 2+ way decision.
+- Flag "intern does X vs. senior does Y" distinctions.
+- For every component I must be able to answer: **what breaks, how would I know, what would I do.**
+- **Keep responses concise.** Work in small checkpoints — my attention drops on long messages.
+- **Always specify the directory** for every command (e.g. `# run from: .../packages/db`).
+- End each phase with 3–5 interview-style questions.
+- I'm comfortable with TypeScript/React. New to NestJS, K8s, production agent systems.
+- Goal: deep **backend + AI/agent** depth. That's the resume centerpiece — not UI polish.
+
+## Deviations from the original spec (deliberate, recorded)
+
+| Spec said | We chose | Why |
+|---|---|---|
+| Next.js | **Vite + React SPA** (+ React Router) | Spec used Next as a dumb client (`"use client"` everywhere, no server components/actions/API routes). That's a SPA in a costume. Deep Next.js is the *next* project. |
+| Fastify adapter | **Express** (Nest default) | Learning focus is agent + architecture, not HTTP throughput. Broader docs/ecosystem. Nest's adapter abstraction made the swap a one-file change and reversible. |
+| React Query from day one | **Plain `useEffect` + `useState`** for now | Deliberate: learn the problem before the solution. Hand-roll loading/error/cancelled state so React Query is a understood tradeoff, not magic. **Migrate in Phase 3** — see below. |
+
+## Environment quirks (hard-won)
+
+- Repo root: `/Users/yash/Desktop/Gen AI/claimpilot` — **contains a space**, quote paths.
+- **Postgres port is 5433, not 5432.** A native Mac Postgres already binds `localhost:5432`; Docker binds `*:5432`, so localhost resolved to the *native* server. Diagnosed with `lsof -i :5432`. Container mapped `5433:5432`.
+  - Debugging lesson worth keeping: *contradictory symptoms (container healthy AND empty, client hangs) → you're observing two different systems.*
+- `DATABASE_URL=postgresql://claimpilot:localdev@localhost:5433/claimpilot`
+- Two `.env` files (`packages/db/.env`, `apps/api/.env`) — each process loads env from its own cwd. Known drift risk; accepted for now.
+- `dotenv` must be imported **first** in `drizzle.config.ts`. Nothing loads `.env` automatically.
+
+## Stack as actually built
+
+- **Monorepo:** pnpm workspaces. `apps/{web,api,ml-service}`, `packages/{db,shared}`. No Nx (build-graph caching doesn't earn its complexity at 5 packages).
+- **API:** NestJS on **Express**. Modules: `DatabaseModule` (`@Global()`), `PoliciesModule`, `AuthGuard`. `@nestjs/config` loads env.
+- **DB:** Postgres 16 (Docker), **Drizzle** ORM. Migrations committed as SQL files (never `drizzle-kit push`).
+- **Auth:** Supabase Auth. `AuthGuard` implements `CanActivate`, validates JWT via `supabase.auth.getUser(token)`.
+- **Web:** Vite + React (not yet scaffolded).
+
+## Progress
+
+### Phase 1 (Days 1–2) — IN PROGRESS
+
+- [x] **1.1 Monorepo skeleton** — pnpm workspaces, `apps/*` + `packages/*` globs, `.nvmrc`, `packageManager` pin.
+- [x] **1.2 DB schema + Drizzle migrations** — all core tables. `claim_events` append-only; `processed_webhook_events` uses `event_id` as PK so a duplicate insert = unique violation = atomic dedup. Money stored as **integer cents**. `agent_checkpoints` deliberately NOT hand-written — LangGraph's Postgres checkpointer owns it (Phase 3).
+  - **TODO (deferred):** enforce append-only at the DB level — revoke UPDATE/DELETE on `claim_events` from the app role, or add a Postgres trigger. Currently only a convention.
+- [x] **1.3 NestJS scaffolding** — Express bootstrap, domain modules, DI, Drizzle wrapped as a **factory provider** under a `DRIZZLE` symbol token, `@Global()`.
+- [x] **1.4 Supabase Auth + guard** — `AuthGuard` on `GET /policies`, returns 401 without a token.
+  - **Known tradeoff:** uses `supabase.auth.getUser(token)` (network round-trip). At scale: verify JWT signature locally with `SUPABASE_JWT_SECRET` + `jose`. Trades revocation freshness for latency.
+  - **Not built yet:** `RolesGuard` (customer vs reviewer) — needed when `/admin` routes land (Phase 5).
+- [x] **1.5 Docker Compose** — Postgres 16-alpine, named volume, healthcheck (`pg_isready`). Migrations applied; tables verified with `\dt`.
+- [x] **1.6 Web scaffold** — Vite + React (TS), `react-router-dom`, `@supabase/supabase-js`. `lib/supabase.ts` + `lib/api.ts` (centralized `apiFetch` attaches `Authorization: Bearer <token>`). CORS enabled on API for `http://localhost:5173` (explicit origin, not `true`).
+  - Data fetching: **plain `useEffect` + `useState`** with a `cancelled` flag in cleanup. No React Query yet (deliberate — see deviations).
+  - Success signal: browser shows **`Error: 401 Unauthorized`** — proves Vite → CORS → Nest → AuthGuard chain works end to end.
+  - `VITE_` prefix = exposed to the browser bundle. Anon key OK there (protected by RLS); Stripe/Gemini/service-role keys **never**.
+- [ ] **1.7 Deploy skeleton** — API → Render, web → Vercel. Prove the pipeline before there's anything real to break.
+- [ ] **Phase 1 interview questions** (owed to me).
+
+### ⚠️ Scheduled migration: React Query in Phase 3
+
+When building the claims chat (polling), **start** with `useEffect` + `setInterval`, feel the friction, then migrate to `@tanstack/react-query` (`refetchInterval` = polling in one line).
+
+Why this can't be left to "wait for errors": hand-rolled polling fails **silently**, not loudly. Watch for:
+- stale closures inside `setInterval` capturing old state
+- intervals not cleaned up on unmount
+- out-of-order responses (slow old request lands after fast new one, overwrites fresh data)
+- the same loading/error/cancelled triplet copy-pasted across 3+ components
+
+Claude should raise this proactively at Phase 3, not wait for the user to hit a bug.
+
+### Remaining phases (from spec §6)
+
+2. Day 3 — Stripe purchase flow + idempotent webhook
+3. Days 4–6 — Claims chat UI (polling) + agent intake & doc collection, checkpointed state
+4. Days 7–9 — VLM consistency analysis + fraud checks + triage node
+5. Days 10–11 — Admin review dashboard + decision flow
+6. Days 12–13 — Python ml-service (YOLOv8), wire cross-check
+7. Days 14–15 — Langfuse + golden dataset + eval script + metrics
+8. Day 16 — GitHub Actions with eval gate; images to GHCR by SHA
+9. Day 17 — k3d + raw manifests, then Helm
+10. Day 18 — HPA + k6, rolling update + rollback drill, PDB, startupProbe
+11. Day 19 — kube-prometheus-stack, Grafana, alert → Slack; Slack review bot
+12. Days 20–22 — Buffer, README, DECISIONS.md, demo video, seed script
+
+## Concepts covered (don't re-teach unless asked)
+
+Monorepo rationale · pnpm vs Nx (linking vs orchestration) · package manifests vs containers · append-only audit log · idempotency (Stripe webhooks, `__drizzle_migrations`) · integer cents · migrations vs `push` · NestJS modules · **dependency injection** (why it makes services unit-testable) · factory providers & symbol tokens · `@Global()` and its risk · authn vs authz · guards vs middleware · declarative vs imperative application · Docker named volumes · healthchecks → k8s readiness/liveness/startup probes · secret classification by blast radius · `useEffect` cleanup & the stale-response race · Vite `VITE_` prefix as a leak guard · CORS explicit origin
+
+Also noted: HIPAA does **not** apply (motor insurance, no PHI). Would apply to the sprint-2 health vertical.
+
+## DECISIONS.md backlog (write these up)
+
+- Vite over Next.js
+- Express over Fastify
+- pnpm without Nx
+- Drizzle over Prisma; migrations over `push`
+- `getUser()` over local JWT verification
+- Postgres on 5433 (port collision)
+- Two `.env` files (accepted drift risk)
+- Plain `useEffect` before React Query (learn the problem first; migrate at Phase 3)
+- Explicit CORS origin over `origin: true`
