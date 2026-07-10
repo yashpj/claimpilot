@@ -57,3 +57,40 @@ auth.guard.ts = the imperative implementation. Written once. This is the "how."
 What the package does — it's Nest's official configuration module. Its main job is reading your .env file and loading those values into process.env at startup, plus giving you ConfigService to access them through Nest's DI. 
 
 Declarative = you describe what you want, and the framework figures out how to do it. The opposite is imperative = you write out the step-by-step how yourself.
+
+
+----------- -------------- ---------------
+The reason people use it is speed, and that comes from a specific trick. Older tools like webpack bundled your entire app into one big file before the dev server could even start — so as your project grew, startup got slower and slower. Vite skips that. In development it serves your files directly to the browser as native ES modules, letting the browser request what it actually needs. Startup is near-instant regardless of project size, and when you save a file it swaps just that module in place rather than rebuilding.
+Concretely, it gives you:
+
+Instant dev server startup
+Fast hot module replacement (edits appear without a full page reload)
+TypeScript, JSX, and CSS handling out of the box with no config
+A production build (via Rollup) that's properly bundled and optimized
+
+Bundling means taking your many source files and combining them into a small number of output files that a browser can efficiently load.
+
+Modern code is written in lots of small modules — you import things from each other, plus from node_modules. A real app might be hundreds or thousands of files once you count dependencies. That's great for you as a developer. It's terrible for a browser on a network, because each file is a separate HTTP request, and requests have overhead. Loading 800 files means 800 round trips.
+
+So a bundler walks your import graph: it starts at your entry point, follows every import, follows their imports, and so on, until it has the complete set of code your app actually needs. Then it concatenates all of it into one file (or a handful), rewriting the imports so everything still wires up correctly.
+
+While it's doing that walk, it also does some useful things it can only do with the whole picture in view:
+
+Tree-shaking — if you import one function from a library but never use the other fifty, they get dropped. The bundler knows they're unreachable.
+Minification — strips whitespace, shortens variable names, removes comments. Same behavior, much smaller file.
+Asset handling — CSS, images, and fonts get processed and given hashed filenames for caching.
+Code splitting — the opposite of naive bundling: instead of one giant file, it can split out chunks that load on demand (say, the admin dashboard only loads when someone visits /admin).
+So a project like this:
+
+src/main.ts → imports Button.ts → imports utils.ts
+            → imports react (from node_modules)
+becomes roughly:
+
+dist/index-a3f9c2.js     (all of it, tree-shaken and minified)
+dist/index-b81e04.css
+Which ties back to the Vite point: in development, Vite deliberately doesn't bundle. It serves your files unbundled as native ES modules, because the browser is on localhost and round trips are free — so you get instant startup and fast updates. In production, it bundles via Rollup, because now your users are on real networks and the tradeoff flips completely.
+
+That split is the whole insight behind Vite. Same app, two different strategies, each matched to what actually matters in that context.
+
+
+----------------------
