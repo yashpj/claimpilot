@@ -41,7 +41,9 @@
 
 ## Progress
 
-### Phase 1 (Days 1–2) — IN PROGRESS
+### Phase 1 (Days 1–2) — COMPLETE ✅
+
+Full chain live and verified over the public internet: Vercel (`claimpilot-web.vercel.app`) → Render API (`claimpilot-qdkx.onrender.com`) → Supabase Postgres. Auth guard enforcing; browser shows clean 401.
 
 - [x] **1.1 Monorepo skeleton** — pnpm workspaces, `apps/*` + `packages/*` globs, `.nvmrc`, `packageManager` pin.
 - [x] **1.2 DB schema + Drizzle migrations** — all core tables. `claim_events` append-only; `processed_webhook_events` uses `event_id` as PK so a duplicate insert = unique violation = atomic dedup. Money stored as **integer cents**. `agent_checkpoints` deliberately NOT hand-written — LangGraph's Postgres checkpointer owns it (Phase 3).
@@ -55,8 +57,38 @@
   - Data fetching: **plain `useEffect` + `useState`** with a `cancelled` flag in cleanup. No React Query yet (deliberate — see deviations).
   - Success signal: browser shows **`Error: 401 Unauthorized`** — proves Vite → CORS → Nest → AuthGuard chain works end to end.
   - `VITE_` prefix = exposed to the browser bundle. Anon key OK there (protected by RLS); Stripe/Gemini/service-role keys **never**.
-- [ ] **1.7 Deploy skeleton** — API → Render, web → Vercel. Prove the pipeline before there's anything real to break.
+- [x] **1.7 Deploy skeleton** — API live on Render, web live on Vercel, Supabase Postgres. 401 verified end-to-end over public internet.
 - [ ] **Phase 1 interview questions** (owed to me).
+- [ ] **Revisit 1.6** — user wants `useEffect` / cleanup / race conditions explained properly. **DO THIS NEXT.**
+
+### CORS debugging lesson (Phase 1 close)
+- A CORS failure shows in the browser as **"Failed to fetch"** — the request succeeds and the response returns, but the browser hides it from JS. Misreads as "server down."
+- `WEB_ORIGIN` on Render must be the **stable production** Vercel URL (`claimpilot-web.vercel.app`), not the per-deploy **preview** URL (has a random hash, changes every deploy). CORS allow-lists point at stable origins.
+- Origin = scheme + host, **no trailing slash, no path**. Must match byte-for-byte.
+- `console.log` in `main.ts` prints to **Render logs (server)**, never the browser console — two runtimes, two log streams.
+- If a debug log never prints, the new build isn't running: check Events tab for a deploy after the push; `git log origin/main -1` to confirm the push landed; Manual Deploy → Clear build cache to force it.
+
+### Phase 1 hard-won lessons
+
+- **Supabase connection modes are not interchangeable:**
+  | Purpose | Port | Why |
+  |---|---|---|
+  | Migrations (drizzle-kit) | 5432 **session pooler** | advisory locks need session state |
+  | App runtime (Render) | 6543 **transaction pooler** | many short-lived connections |
+
+  Transaction mode releases the backend connection per-transaction, so Drizzle's migration advisory lock can never be held → **silent infinite hang**, not an error. True direct connection (`db.[ref].supabase.co`) is IPv6-only and unreachable from an IPv4 network (`ENOTFOUND`).
+- **`packages/db` must emit `dist/` before `api` builds.** Nest's compiler won't compile `.ts` outside its `rootDir`, so pointing `main`/`types` at source works in dev (ts-node) and breaks in `nest build`. Added `packages/db/tsconfig.build.json` with `declaration: true`. Render build command: `pnpm install --frozen-lockfile && pnpm --filter @claimpilot/db build && pnpm --filter api build`
+  - Lesson: local machine had stale `dist/` that CI didn't. "Works on my machine" = uncommitted or unbuilt state. Test with `rm -rf packages/db/dist` before trusting a build.
+- **`ConfigService.getOrThrow()` paid off** — Render failed with `Configuration key "SUPABASE_URL" does not exist`, naming the exact key, instead of a cryptic error from Supabase internals. Fail fast, fail legibly.
+- **Render binding:** must use `process.env.PORT` and `0.0.0.0`, else the platform health check never reaches the app.
+- **Render free tier spins down after inactivity** (~30s cold start). Warm it before any demo.
+- **Credential hygiene:** user pasted a live DB password into chat; rotated. Reflex to build now.
+
+### TODO surfaced, not yet built
+
+- `/health` endpoint returning 200 — needed for k8s readiness probes (Phase 9), useful now.
+- `WEB_ORIGIN` env var on Render, once the Vercel URL exists.
+- Automate migrations in CI (Phase 8). Currently run by hand. "Who runs migrations, and when" is a real production question.
 
 ### ⚠️ Scheduled migration: React Query in Phase 3
 
@@ -101,3 +133,5 @@ Also noted: HIPAA does **not** apply (motor insurance, no PHI). Would apply to t
 - Two `.env` files (accepted drift risk)
 - Plain `useEffect` before React Query (learn the problem first; migrate at Phase 3)
 - Explicit CORS origin over `origin: true`
+- Session pooler (5432) for migrations, transaction pooler (6543) for app runtime
+- `packages/db` builds to `dist/` before `api` compiles
