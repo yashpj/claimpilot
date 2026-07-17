@@ -17,6 +17,9 @@ importers:
       '@claimpilot/db':
         specifier: workspace:^
         version: link:../../packages/db
+      '@claimpilot/shared':
+        specifier: workspace:^
+        version: link:../../packages/shared
       '@nestjs/common':
         specifier: ^11.0.1
         version: 11.1.27(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -44,6 +47,12 @@ importers:
       rxjs:
         specifier: ^7.8.1
         version: 7.8.2
+      stripe:
+        specifier: ^22.3.2
+        version: 22.3.2(@types/node@24.13.2)
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@eslint/eslintrc':
         specifier: ^3.2.0
@@ -117,6 +126,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@claimpilot/shared':
+        specifier: workspace:^
+        version: link:../../packages/shared
       '@supabase/supabase-js':
         specifier: ^2.110.1
         version: 2.110.1
@@ -188,6 +200,12 @@ importers:
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
+
+  packages/shared:
+    dependencies:
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
 
 packages:
 
@@ -3691,6 +3709,15 @@ packages:
   strip-json-comments@3.1.1:
     resolution: {integrity: sha512-6fPc+R4ihwqP6N/aIv2f1gMH8lOVtWQHoqC4yK6oSDVVocumAsfCqjkXnqiYMhmMwS/mEHLp7Vehlt3ql6lEig==}
     engines: {node: '>=8'}
+
+  stripe@22.3.2:
+    resolution: {integrity: sha512-O13QOvgEIQvDlTy6Ubb5kB980wpbhmoZNsgCXKILjCMZS67f+bW+6w99k3gnSi/N1lkryoj1WYdpGT5Wc5edjg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@types/node': '>=18'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
 
   strtok3@10.3.5:
     resolution: {integrity: sha512-ki4hZQfh5rX0QDLLkOCj+h+CVNkqmp/CMf8v8kZpkNVK6jGQooMytqzLZYUVYIZcFZ6yDB70EfD8POcFXiF5oA==}
@@ -7829,6 +7856,10 @@ snapshots:
   strip-final-newline@2.0.0: {}
 
   strip-json-comments@3.1.1: {}
+
+  stripe@22.3.2(@types/node@24.13.2):
+    optionalDependencies:
+      '@types/node': 24.13.2
 
   strtok3@10.3.5:
     dependencies:

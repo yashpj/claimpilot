@@ -94,3 +94,27 @@ That split is the whole insight behind Vite. Same app, two different strategies,
 
 
 ----------------------
+Phase 2
+
+Zod validation — the pipe
+Concept: a pipe in Nest transforms or validates input before it reaches your handler. Your spec mandates Zod on all API inputs. The reason: @Body() gives you any — TypeScript's types vanish at runtime, so a client can POST { year: "banana" } and TS won't stop it. Zod validates at runtime and infers the type.
+
+**Imp
+Intern vs senior: intern trusts @Body() dto: CreatePolicyDto because it's typed — but that type is a compile-time fiction; nothing checks it at runtime. Senior validates at the boundary and treats every external input as hostile until parsed.
+
+safeParse returns a result object rather than throwing — so you control the error shape. Returning result.data (not value) matters: Zod strips unknown keys and applies coercions, so the handler gets clean data.
+
+z.infer derives the TS type from the runtime schema — one definition, both guarantees. That's the whole point of Zod over hand-written DTOs: they can't drift apart.
+
+
+pnpm = package manager. Installs deps, links workspace packages so import "@claimpilot/shared" resolves. Your pnpm add, pnpm install.
+
+Nx = build orchestrator. Sits on top of pnpm. Knows api depends on shared, so it builds them in the right order, skips unchanged packages, and caches results.
+
+The split you asked about before:
+
+Linking ("can this import find its target?") → pnpm
+Orchestration ("what order, what can I skip/cache?") → Nx
+Your current friction — manually running pnpm --filter @claimpilot/shared build before the API build — is orchestration. Nx would infer that and do it automatically. It's just not worth its complexity for two commands yet.
+
+The ownership check — and(eq(id), eq(userId)). Without the userId clause, anyone with a policy id could generate a checkout session for someone else's policy. Filtering by owner in the query (not fetching then comparing in JS) is the habit: authorization belongs in the WHERE clause. This class of bug — IDOR (Insecure Direct Object Reference) — is one of the most common real-world vulnerabilities.
