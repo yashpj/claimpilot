@@ -86,4 +86,16 @@ export class PoliciesService {
 
     return { url: session.url };
   }
+
+  async findOne(userId: string, policyId: string) {
+  const [policy] = await this.db
+    .select()
+    .from(schema.policies)
+    .where(and(
+      eq(schema.policies.id, policyId),
+      eq(schema.policies.userId, userId),
+    ));
+  if (!policy) throw new NotFoundException();
+  return policy;
+    }
 }

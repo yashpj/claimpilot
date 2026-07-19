@@ -2,18 +2,16 @@
   "name": "@claimpilot/shared",
   "version": "1.0.0",
   "private": true,
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/cjs/index.js",
+  "types": "./dist/cjs/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "types": "./dist/cjs/index.d.ts"
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json"
-  },
-  "dependencies": {
-    "zod": "^4.4.3"
+    "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.build.esm.json"
   }
 }

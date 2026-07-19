@@ -3,7 +3,11 @@ import { NestExpressApplication } from "@nestjs/platform-express";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true,     // ← Nest keeps the raw buffer
+  });
+
   // app.enableCors({ origin: "http://localhost:5173" });
 
   app.enableCors({

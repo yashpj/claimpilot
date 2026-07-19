@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards, UsePipes, Req, Param } from "@nestjs/common";
+import { Body, Controller, Post, Get, UseGuards, UsePipes, Req, Param } from "@nestjs/common";
 import { createPolicySchema, type CreatePolicyInput } from "@claimpilot/shared";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 import { AuthGuard } from "../auth/auth.guard";
@@ -19,5 +19,11 @@ export class PoliciesController {
   @UseGuards(AuthGuard)
   checkout(@Param("id") id: string, @Req() req: any) {
     return this.policies.createCheckoutSession(req.user.id, id);
+  }
+
+  @Get(":id")
+  @UseGuards(AuthGuard)
+  findOne(@Param("id") id: string, @Req() req: any) {
+    return this.policies.findOne(req.user.id, id);
   }
 }
