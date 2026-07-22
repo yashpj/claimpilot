@@ -86,9 +86,12 @@ Full chain live and verified over the public internet: Vercel (`claimpilot-web.v
 
 ### TODO surfaced, not yet built
 
+- **Sign-out button** — no way to log out currently. `supabase.auth.signOut()` + redirect to `/`. Also needed for testing multiple accounts. (Surfaced end of Phase 2.)
+- **Auth → public.users sync** — DONE via Postgres trigger `on_auth_user_created` (mirrors `auth.users` → `public.users` with role `customer`). ⚠️ Trigger lives in the DB, not the repo — MUST be added to the seed/migration SQL (Phase 12) or a fresh DB silently breaks signup with a `23503` FK violation on `vehicles.owner_id`. Backfill for existing users: `insert into public.users (id,email,role) select id,email,'customer' from auth.users on conflict do nothing`.
 - `/health` endpoint returning 200 — needed for k8s readiness probes (Phase 9), useful now.
 - `WEB_ORIGIN` env var on Render, once the Vercel URL exists.
 - Automate migrations in CI (Phase 8). Currently run by hand. "Who runs migrations, and when" is a real production question.
+- `RolesGuard` (customer vs reviewer) — needed when `/admin` routes land (Phase 5).
 
 ### ⚠️ Scheduled migration: React Query in Phase 3
 
@@ -102,9 +105,33 @@ Why this can't be left to "wait for errors": hand-rolled polling fails **silentl
 
 Claude should raise this proactively at Phase 3, not wait for the user to hit a bug.
 
+### Phase 2 (Day 3) — COMPLETE ✅
+
+Full purchase loop working end to end: create policy (`pending_payment`) → Stripe Checkout → webhook → signature verified → idempotent activation → `active`. Verified with test card 4242.
+
+- [x] **2.1 Payment flow concept** — two channels: redirect (UX, untrusted) vs webhook (truth, server-to-server). Policy activated by webhook only. Stripe guarantees at-least-once delivery → handler must be idempotent.
+- [x] **2.2 Seed plans + create policy** — `PLANS` config in `packages/shared` (config-in-code, not a DB table, for fixed plans). Zod validation pipe. Policy created BEFORE payment. `userId` from JWT never body; `premium` from config never client. Vehicle+policy inserts in a transaction (atomicity).
+- [x] **2.3 Stripe Checkout session** — Stripe wrapped as a provider (`STRIPE` symbol, factory with `inject: [ConfigService]`). `metadata.policyId` threads session → webhook. Ownership check in WHERE clause (IDOR prevention). `unit_amount` from DB.
+- [x] **2.4 Webhook + idempotency** — `rawBody: true` in main.ts (signature verifies over raw bytes). No AuthGuard (signature IS the auth). Insert-first dedup on `processed_webhook_events.event_id`; `23505` = duplicate, logged at `log` not `error`. Dedup + activation in ONE transaction.
+- [x] **2.5 Frontend flow** — React Router, Login/Buy/PolicyDetail pages, `vercel.json` SPA rewrite, `apiPost` attaches bearer token, `justPaid` message papers over webhook lag.
+
+### Phase 2 hard-won lessons
+
+- **Drizzle wraps driver errors.** The Postgres error code (`23505`, `23503`) is on `err.cause.code`, NOT `err.code`. Catch must check both: `err?.code === "23505" || err?.cause?.code === "23505"`. Returning 500 to Stripe on a duplicate = Stripe retries for days.
+- **Stripe CLI vs dashboard webhook secrets differ.** `stripe listen` prints its own `whsec_` for local; production uses the dashboard endpoint's secret.
+- **`stripe events resend evt_xxx`** re-delivers the SAME event id — the idempotency test. `stripe trigger` makes NEW ids each time.
+- **Local Docker DB vs Supabase are two databases.** API's `apps/api/.env` `DATABASE_URL` points at LOCAL Docker (5433). Running SQL in the Supabase dashboard fixed the WRONG database. (Third "two systems" trap — port collision, pooler modes, now this.)
+- **Auth/user-table sync is env-specific:**
+  - Supabase (deployed): trigger `on_auth_user_created` mirrors `auth.users` → `public.users`.
+  - Local Docker (dev): NO `auth.users` schema, so trigger doesn't apply. Insert users into local `public.users` via seed script. Login (Supabase Auth) and data (local Postgres) are separate systems both claiming to own users.
+- **Email confirmation off** for demo: Supabase → Auth → Providers → Email → "Confirm email" off, else `signUp()` returns no session → no token → 401.
+
+### Decided: local dev uses Docker Postgres (Option A)
+
+API points at local Docker (5433) for dev; Supabase is the deployed DB. Consequence: **seed script (Phase 12) MUST insert dev users into local `public.users`** matching logged-in Supabase Auth ids, or FKs on `owner_id`/`user_id` break.
+
 ### Remaining phases (from spec §6)
 
-2. Day 3 — Stripe purchase flow + idempotent webhook
 3. Days 4–6 — Claims chat UI (polling) + agent intake & doc collection, checkpointed state
 4. Days 7–9 — VLM consistency analysis + fraud checks + triage node
 5. Days 10–11 — Admin review dashboard + decision flow
