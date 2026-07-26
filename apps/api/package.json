@@ -22,6 +22,9 @@
   "dependencies": {
     "@claimpilot/db": "workspace:^",
     "@claimpilot/shared": "workspace:^",
+    "@langchain/core": "^1.2.3",
+    "@langchain/langgraph": "^1.4.8",
+    "@langchain/langgraph-checkpoint-postgres": "^1.0.4",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
