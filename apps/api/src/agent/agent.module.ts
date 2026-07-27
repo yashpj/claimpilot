@@ -1,6 +1,7 @@
 import { Global, Module } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
+import { AgentService } from "./agent.service";
 
 export const CHECKPOINTER = Symbol("CHECKPOINTER");
 
@@ -16,9 +17,10 @@ export const CHECKPOINTER = Symbol("CHECKPOINTER");
         );
         await saver.setup();   // creates checkpoint tables if absent
         return saver;
-      },
+      }
     },
+    AgentService
   ],
-  exports: [CHECKPOINTER],
+  exports: [CHECKPOINTER, AgentService],
 })
 export class AgentModule {}
