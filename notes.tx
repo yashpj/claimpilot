@@ -118,3 +118,24 @@ Orchestration ("what order, what can I skip/cache?") → Nx
 Your current friction — manually running pnpm --filter @claimpilot/shared build before the API build — is orchestration. Nx would infer that and do it automatically. It's just not worth its complexity for two commands yet.
 
 The ownership check — and(eq(id), eq(userId)). Without the userId clause, anyone with a policy id could generate a checkout session for someone else's policy. Filtering by owner in the query (not fetching then comparing in JS) is the habit: authorization belongs in the WHERE clause. This class of bug — IDOR (Insecure Direct Object Reference) — is one of the most common real-world vulnerabilities.
+
+
+--------
+Phase 3
+
+The module — apps/api/src/llm/llm.module.ts:
+
+ts
+import { Global, Module } from "@nestjs/common";
+import { LLM } from "./llm.interface";
+import { GeminiProvider } from "./gemini.provider";
+
+@Global()
+@Module({
+  providers: [{ provide: LLM, useClass: GeminiProvider }],
+  exports: [LLM],
+})
+export class LlmModule {}
+
+useClass — bind the LLM token to GeminiProvider. Swapping providers = change this one line to useClass: OpenAiProvider. 
+Nodes inject LLM and never know which implementation they got. That's the point of the interface.

@@ -9,7 +9,7 @@ export class GeminiProvider implements LlmProvider {
 
   constructor(config: ConfigService) {
     const genAI = new GoogleGenerativeAI(config.getOrThrow("GEMINI_API_KEY"));
-    this.model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    this.model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
   }
 
   async complete(prompt: string, systemPrompt?: string): Promise<string> {
@@ -18,11 +18,12 @@ export class GeminiProvider implements LlmProvider {
     return result.response.text();
   }
 
-  async extractJson<T>(prompt: string, systemPrompt?: string): Promise<T> {
-    const sys = `${systemPrompt ?? ""}\nRespond with ONLY valid JSON, no markdown, no prose.`;
-    const raw = await this.complete(prompt, sys);
-    // Models often wrap JSON in ```json fences despite instructions — strip them.
-    const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
-    return JSON.parse(cleaned) as T;
-  }
+async extractJson<T>(prompt: string, systemPrompt?: string): Promise<T> {
+  const sys = `${systemPrompt ?? ""}\nRespond with ONLY valid JSON, no markdown, no prose.`;
+  const raw = await this.complete(prompt, sys);
+  console.log("LLM RAW:", raw);   // ← temporary
+  const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
+  console.log("LLM CLEANED:", cleaned);   // ← temporary
+  return JSON.parse(cleaned) as T;
+}
 }

@@ -19,11 +19,14 @@ export function makeIntakeNode({ db, llm }: AgentDeps) {
       .map((m) => `${m.getType()}: ${m.content}`)
       .join("\n");
 
-    const system =
-      "You are an insurance intake assistant. From the conversation, extract " +
-      "the incident date (ISO format), location, and description. " +
-      "Use null for anything not yet provided.";
-
+const system =
+  "You are an insurance intake assistant. From the conversation, extract " +
+  "these exact JSON fields: " +
+  '"date" (the incident date in ISO format YYYY-MM-DD), ' +
+  '"location" (where it happened), ' +
+  '"description" (what happened). ' +
+  "Use null for any field not yet provided. " +
+  "Use exactly these key names: date, location, description.";
     // 1. LLM extracts structured data from free-form chat.
     const raw = await llm.extractJson<unknown>(transcript, system);
 

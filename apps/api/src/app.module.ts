@@ -6,6 +6,7 @@ import { StripeModule } from "./stripe/stripe.module";
 import { WebhooksModule } from "./webhooks/webhooks.module";
 import { AgentModule } from "./agent/agent.module";
 import { LlmModule } from "./llm/llm.module";
+import { ClaimsModule } from "./claims/claims.module";
 
 @Module({
   imports: [
@@ -15,7 +16,8 @@ import { LlmModule } from "./llm/llm.module";
     PoliciesModule,
     WebhooksModule,
     AgentModule,
-    LlmModule
+    LlmModule,
+    ClaimsModule
   ],
 })
 export class AppModule {}

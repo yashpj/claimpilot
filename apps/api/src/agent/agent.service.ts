@@ -1,11 +1,12 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
 import { buildClaimGraph } from "./graph";
-import { CHECKPOINTER } from "./agent.module";
+import { CHECKPOINTER } from "./agent.tokens";
 import * as llmInterface from "src/llm/llm.interface";
 import { DRIZZLE } from "src/database/database.module";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import * as schema from "@claimpilot/db";
+import { ClaimStateType } from "./state";
 // import * as deps from './deps'
 @Injectable()
 export class AgentService {
@@ -24,4 +25,9 @@ constructor(
   const deps = { db, llm };
   this.app = buildClaimGraph(deps).compile({ checkpointer });
 }
+
+async invoke(input: Partial<ClaimStateType>, config: any) {
+  return this.app.invoke(input, config);
 }
+}
+
