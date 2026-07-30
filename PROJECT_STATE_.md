@@ -130,9 +130,28 @@ Full purchase loop working end to end: create policy (`pending_payment`) → Str
 
 API points at local Docker (5433) for dev; Supabase is the deployed DB. Consequence: **seed script (Phase 12) MUST insert dev users into local `public.users`** matching logged-in Supabase Auth ids, or FKs on `owner_id`/`user_id` break.
 
+### Phase 3 (Days 4–6) — COMPLETE ✅
+
+LangGraph claims agent working end to end in the browser: type message → agent runs intake node → Gemini extracts fields → coverage validation → intake→documents transition → reply appears via polling, no refresh. Resume centerpiece, done.
+
+- [x] **3.1 Concept** — agent as state machine (graph drives, LLM is a tool inside nodes). Checkpoint to Postgres so state survives restarts + scales horizontally. `thread_id` = conversation identity = checkpoint lookup key.
+- [x] **3.2 State + skeleton** — `ClaimState` annotation (messages append via reducer, incident/documents merge, phase replaces). Checkpointer as `@Global` async factory provider. NOTE: this LangGraph version uses `value` (not `reducer`) for the reducer key.
+- [x] **3.3 Intake node** — LLM behind provider-agnostic `LlmProvider` interface (`LLM` symbol, `useClass: GeminiProvider`). Extract → Zod-validate → merge → decide.
+- [x] **3.4 Documents node + conditional edges** — `addConditionalEdges` routes on state. Coverage validation (business rejection → `phase: done`). Nodes take `AgentDeps`. "Ask user = return END, resume from checkpoint next message."
+- [x] **3.5 Chat API** — `POST /claims`, `POST /claims/:id/messages`, `GET /claims/:id`. Hydrate documents from DB each run. `claim_events` written by SERVICE not nodes. Chat transcript = projection of append-only log.
+- [x] **3.6 Frontend chat UI + React Query migration** — built polling by hand first (felt the pain), then migrated. `refetchInterval: 2000` replaced useEffect+setInterval+clearInterval+cancelled-flag. `invalidateQueries` for instant post-send refresh. THE scheduled migration from 1.6, done the honest way.
+
+### Phase 3 hard-won lessons
+
+- **Gemini model names churn constantly.** `gemini-1.5-flash` (404 retired), `gemini-2.0-flash` (429 `limit:0`), `gemini-2.5-flash` (404 "not available to new users"). Fixed with `gemini-flash-latest` (stable alias). Made it CONFIG: `GEMINI_MODEL` env var, not hardcoded — "hardcoded vs config" §7 lesson lived firsthand.
+- **LLM output shape drifts.** Model returned `incident_date`; Zod schema expected `date` → safeParse failed → null fallback → agent asked again forever. Fix: pin exact key names in the prompt AND validate with Zod (belt + suspenders). The validation working is what surfaced the bug instead of garbage entering state.
+- **Debug LLM issues by logging RAW output first.** `console.log` the raw completion before parsing — instantly showed extraction was fine and the bug was field-name mismatch, not the model.
+- **`stripe listen` must run during local payment**, or the webhook never arrives and policy stays `pending_payment` → agent rejects claim on coverage. Prod doesn't need it (webhook registered to Render URL). Dev checklist: 3 terminals (API, stripe listen, web) before testing payments.
+- **Coverage window is real:** manually flipping a policy to active sets `coverage_start=now()`, so a past incident date fails the window check. Test with an in-window incident date.
+- **Circular import gotcha:** `CHECKPOINTER` symbol moved to its own `agent.tokens.ts` — module↔service circular import left it undefined at injection (`?` at index 0 in Nest error). Injection tokens (Symbols) must be VALUE imports, never `import type`.
+
 ### Remaining phases (from spec §6)
 
-3. Days 4–6 — Claims chat UI (polling) + agent intake & doc collection, checkpointed state
 4. Days 7–9 — VLM consistency analysis + fraud checks + triage node
 5. Days 10–11 — Admin review dashboard + decision flow
 6. Days 12–13 — Python ml-service (YOLOv8), wire cross-check

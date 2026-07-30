@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { apiFetch, apiPost } from "../lib/api";
+import { useNavigate } from "react-router-dom";
 
 type Policy = { id: string; status: string; planType: string; premium: number };
 
@@ -9,7 +10,7 @@ export default function PolicyDetail() {
   const [searchParams] = useSearchParams();
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [error, setError] = useState<string | null>(null);
-
+  const navigate = useNavigate();
   const justPaid = searchParams.get("paid") === "1";
 
   useEffect(() => {
@@ -25,6 +26,12 @@ export default function PolicyDetail() {
     window.location.href = url;   // hand off to Stripe
   }
 
+  async function fileClaim() {
+    const claim = await apiPost<{ id: string }>("/claims", { policyId: policy.id });
+    navigate(`/claims/${claim.id}`);
+  }
+// render when policy.status === "active":
+// <button onClick={fileClaim}>File a claim</button>
   if (error) return <p>Error: {error}</p>;
   if (!policy) return <p>Loading…</p>;
 
@@ -41,6 +48,11 @@ export default function PolicyDetail() {
       {policy.status === "pending_payment" && !justPaid && (
         <button onClick={pay}>Pay now</button>
       )}
+
+      {policy.status === "active" && (
+        <button onClick={fileClaim}>File a claim</button>
+      )}
+
     </div>
   );
 }
