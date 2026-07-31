@@ -139,3 +139,34 @@ export class LlmModule {}
 
 useClass — bind the LLM token to GeminiProvider. Swapping providers = change this one line to useClass: OpenAiProvider. 
 Nodes inject LLM and never know which implementation they got. That's the point of the interface.
+
+
+Q1 — Idempotency. Correct, with one gap. You have the double-policy risk and the insert-first rationale right. The gap: why insert-first beats check-then-insert isn't just "fewer queries" — it's the race condition. Two concurrent deliveries both run the check at the same instant, both see "not there," both insert → double activation. The unique constraint is enforced by the database atomically, so even simultaneous inserts, one wins and one gets 23505. Say it like: "Check-then-insert has a race — two concurrent events both pass the check before either inserts. Insert-first delegates uniqueness to the DB, which serializes it atomically; the loser gets a unique violation I catch." That's the senior version.
+
+Q2 — Two channels. Both reasons, correct. Client can vanish before confirming (lost payment), and the client is untrusted (forgeable). Tighten reason two: it's not just "forgeable" — it's that anyone can POST to your success endpoint claiming they paid. The webhook is trustworthy because it's signed by Stripe and comes server-to-server. Frame: "The redirect is unauthenticated and client-controlled; the webhook is signed and server-to-server. Money decisions ride the trustworthy channel." Good instinct on the support-ticket framing — that shows product sense.
+
+Q3 — DI / testability. Right idea, land it harder. Yes — wrapping Drizzle as a provider lets you mock it in tests. The concrete win: you can construct PoliciesService with a fake DB that returns canned rows, and test the service's logic with no real database, no network, fast and deterministic. With new Database() inside, the dependency is welded in — you can't substitute it, so every test needs a real DB. Say: "Injection means the test supplies a stub database; I assert the service's behavior in isolation. Hardcoded construction makes that impossible — the service and its dependency can't be separated."
+
+Q4 — State machine. Excellent. You nailed the core: LLMs are non-deterministic, so an LLM-driven loop is unevaluable and unpredictable; the graph enforces fixed transitions and lets you validate/parse LLM output against a schema at each node. That's exactly it. One phrase to add: the graph owns control flow, the LLM only does language tasks inside a node. That inversion is the whole point, and you basically said it — just name it crisply.
+
+Q5 — Checkpointing. Both failure modes, correct. Multi-server needs sticky sessions if state is in memory (right), and a crash loses in-flight state (right). Those are the two. Clean framing: "In-memory state forces sticky sessions — any instance must be able to serve any request, which it can't if state lives in one process's RAM. And a restart or crash wipes every in-progress claim. Postgres externalizes it, so instances are interchangeable and state survives restarts."
+
+Q6 — The three places. You got checkpointing; here are all three. This is the pattern worth memorizing because it's your project's spine:
+
+JWT auth — the server holds no session; the token carries identity. Any instance validates it.
+Idempotent webhooks — dedup state lives in processed_webhook_events in the DB, not process memory. Any instance sees what's already processed.
+Agent checkpointing — conversation state in Postgres, not RAM.
+
+Same idea all three times: the service holds no state between requests; state lives in a shared datastore, so any instance can serve any request. That's what makes horizontal scaling possible. Memorize the one-liner — it ties three phases into one principle, which is exactly what senior interviewers reward.
+
+Q7 — Your signature bug. Here are the three (you couldn't recall — normal, they were spread over days):
+
+Postgres port collision — native Mac Postgres on 5432 and Docker on 5432; your client hit the wrong one. Diagnosed with lsof -i :5432.
+Supabase pooler modes — session pooler (5432) vs transaction pooler (6543); migrations silently hung on the wrong one.
+Local Docker DB vs Supabase — you ran the user-fix SQL in the Supabase dashboard while the API pointed at local Docker. Fixed the wrong database.
+
+The general tell: contradictory symptoms that can't both be true of one system. "The row exists (Supabase) but the FK says it doesn't (local)." "The container is healthy but empty." When two observations contradict, you're looking at two different systems wearing the same face — check which one you're actually talking to. Say that in an interview and it signals hard-won operational maturity.
+
+
+
+------------------------ 
