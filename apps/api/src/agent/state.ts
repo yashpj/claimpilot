@@ -37,6 +37,18 @@ export const ClaimState = Annotation.Root({
     value: (_existing, update) => update,   // replace
     default: () => "intake",
   }),
+
+  analysis: Annotation<{
+  observedDamage?: string;
+  matchesDescription?: boolean;
+  confidence?: number;
+  discrepancies?: string[];
+  status?: "complete" | "failed" | "skipped";
+    }>(
+      {
+      value: (existing, update) => ({ ...existing, ...update }),
+      default: () => ({}),
+    }),
 });
 
 export type ClaimStateType = typeof ClaimState.State;

@@ -7,6 +7,7 @@ import { WebhooksModule } from "./webhooks/webhooks.module";
 import { AgentModule } from "./agent/agent.module";
 import { LlmModule } from "./llm/llm.module";
 import { ClaimsModule } from "./claims/claims.module";
+import { StorageModule } from "./storage/storage.module";
 
 @Module({
   imports: [
@@ -17,7 +18,8 @@ import { ClaimsModule } from "./claims/claims.module";
     WebhooksModule,
     AgentModule,
     LlmModule,
-    ClaimsModule
+    ClaimsModule,
+    StorageModule
   ],
 })
 export class AppModule {}

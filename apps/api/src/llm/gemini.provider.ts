@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import type { LlmProvider } from "./llm.interface";
+import type { ImagePart, LlmProvider } from "./llm.interface";
 
 @Injectable()
 export class GeminiProvider implements LlmProvider {
@@ -26,4 +26,19 @@ async extractJson<T>(prompt: string, systemPrompt?: string): Promise<T> {
   console.log("LLM CLEANED:", cleaned);   // ← temporary
   return JSON.parse(cleaned) as T;
 }
+
+async analyzeImages<T>(prompt: string, images: ImagePart[], systemPrompt?: string): Promise<T> {
+  const sys = `${systemPrompt ?? ""}\nRespond with ONLY valid JSON, no markdown.`;
+  const parts = [
+    { text: `${sys}\n\n${prompt}` },
+    ...images.map((img) => ({
+      inlineData: { data: img.data, mimeType: img.mimeType },
+    })),
+  ];
+  const result = await this.model.generateContent(parts);
+  const raw = result.response.text();
+  const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
+  return JSON.parse(cleaned) as T;
+}
+
 }
