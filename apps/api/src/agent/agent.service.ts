@@ -7,7 +7,7 @@ import { DRIZZLE } from "src/database/database.module";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import * as schema from "@claimpilot/db";
 import { ClaimStateType } from "./state";
-// import * as deps from './deps'
+import { StorageService } from "src/storage/storage.service";
 @Injectable()
 export class AgentService {
   private readonly app;
@@ -21,8 +21,9 @@ constructor(
   @Inject(CHECKPOINTER) checkpointer: PostgresSaver,
   @Inject(llmInterface.LLM) llm: llmInterface.LlmProvider,
   @Inject(DRIZZLE) db: PostgresJsDatabase<typeof schema>,
+  private readonly storage: StorageService,   // NEW
 ) {
-  const deps = { db, llm };
+  const deps = { db, llm, storage };
   this.app = buildClaimGraph(deps).compile({ checkpointer });
 }
 
