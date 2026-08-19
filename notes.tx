@@ -170,3 +170,12 @@ The general tell: contradictory symptoms that can't both be true of one system. 
 
 
 ------------------------ 
+Phase 4:
+AI does not decide the claim but AI is preparing the claim for human.
+Two kinds of checks: probabilistic and deterministic
+
+Phase 4 layers two very different mechanisms, and knowing why you need both is the senior insight:
+
+VLM analysis (probabilistic). Powerful, flexible, reads images and language — but non-deterministic and sometimes wrong. Good at "does this photo match this story?"
+Fraud heuristics (deterministic). Plain code, no AI. "Claim filed 2 days after policy started." "Claimed amount exceeds the vehicle's declared value." "Third claim this month."
+These are boring if statements — but they're reliable, explainable, and free. A rule either fires or it doesn't; you can defend it in court.
