@@ -1,0 +1,27 @@
+{
+ "modelVersion": "yolov11n-car-damage@hf:vineetsarpal",
+ "detections": [
+  [
+   {
+    "class": "doorouter-dent",
+    "confidence": 0.2277,
+    "bbox": [
+     377.8,
+     346.2,
+     604.5,
+     497.7
+    ]
+   },
+   {
+    "class": "fender-dent",
+    "confidence": 0.1644,
+    "bbox": [
+     615.8,
+     342.8,
+     810.5,
+     445.5
+    ]
+   }
+  ]
+ ]
+}

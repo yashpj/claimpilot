@@ -1,0 +1,21 @@
+{
+ "value": {
+  "is_vehicle": true,
+  "damage_locations": [
+   "rear bumper",
+   "rear quarter panel",
+   "trunk"
+  ],
+  "severity_estimate": "severe",
+  "matches_description": false,
+  "flags": [],
+  "confidence": 1,
+  "summary": "The photo shows severe rear-end damage on a white sedan, which does not match the customer's description of hail damage to the roof and hood."
+ },
+ "usage": {
+  "inputTokens": 1421,
+  "outputTokens": 113
+ },
+ "model": "gemini-flash-lite-latest",
+ "latencyMs": 1072
+}

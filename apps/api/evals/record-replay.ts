@@ -10,14 +10,16 @@ import type {
 import { MlClient } from "../src/agent/ml/ml.client";
 
 // VCR-style cassettes for the eval suite.
-//  record: call the real model AND save the response
-//  replay: never touch the network; a missing cassette is an error
-//  live:   call the real model, save nothing
+//  record:   reuse existing cassettes, call the real model only for missing
+//            ones and save them (cheap: re-running only fills the gaps)
+//  rerecord: call the real model for everything and overwrite cassettes
+//  replay:   never touch the network; a missing cassette is an error
+//  live:     call the real model, save nothing
 // Why: CI must be deterministic, free and not need secrets. Replay still
 // exercises every line of OUR code (parsing, cross-check, fraud, triage
 // rules). A prompt change changes the cache key, so CI fails until someone
 // re-records => prompt changes can't merge without a fresh live eval.
-export type Mode = "record" | "replay" | "live";
+export type Mode = "record" | "rerecord" | "replay" | "live";
 
 const sha = (s: string | Buffer) => createHash("sha256").update(s).digest("hex");
 
@@ -30,12 +32,13 @@ class Cassettes {
 
   async through<T>(key: string, real: () => Promise<T>): Promise<T> {
     const file = path.join(this.dir, `${key.slice(0, 32)}.json`);
-    if (this.mode === "replay") {
-      if (!existsSync(file)) throw new CacheMiss(`no cassette ${path.basename(file)}`);
+    const have = existsSync(file);
+    if (this.mode === "replay" || (this.mode === "record" && have)) {
+      if (!have) throw new CacheMiss(`no cassette ${path.basename(file)}`);
       return JSON.parse(readFileSync(file, "utf8")) as T;
     }
     const value = await real();
-    if (this.mode === "record") writeFileSync(file, JSON.stringify(value, null, 1));
+    if (this.mode !== "live") writeFileSync(file, JSON.stringify(value, null, 1));
     return value;
   }
 }

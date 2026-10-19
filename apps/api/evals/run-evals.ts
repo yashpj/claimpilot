@@ -5,7 +5,8 @@
  * Exits 1 if any metric regresses past evals/baseline.json.
  *
  *   EVAL_MODE=replay pnpm eval            # CI default: cassettes, no network
- *   EVAL_MODE=record pnpm eval            # live Gemini + ml-service, save cassettes
+ *   EVAL_MODE=record pnpm eval            # fill missing cassettes from live Gemini + ml-service
+ *   EVAL_MODE=rerecord pnpm eval          # re-record everything (after a prompt/model change)
  *   pnpm eval --update-baseline           # accept current numbers as the baseline
  */
 import { ConfigService } from "@nestjs/config";
@@ -62,7 +63,7 @@ async function main() {
 
   const config = new ConfigService(process.env);
   const real = mode === "replay" ? null : new GeminiProvider(config);
-  const visionModel = config.get<string>("GEMINI_VISION_MODEL") ?? "gemini-flash-latest";
+  const visionModel = config.get<string>("GEMINI_VISION_MODEL") ?? "gemini-flash-lite-latest";
   const llm = new RecordReplayLlm(real, path.join(ROOT, "cache/llm"), mode, visionModel);
   const ml = new RecordReplayMl(
     new MlClient(config.get<string>("ML_SERVICE_URL") ?? null, 30_000),
@@ -81,7 +82,11 @@ async function main() {
   const policyId = await ensureEvalPolicy(db);
   const results = [];
 
+  // Free tier: 15 requests/min. Pace live calls instead of eating 429s.
+  const pauseMs = mode === "replay" ? 0 : Number(process.env.EVAL_CASE_DELAY_MS ?? 4500);
+
   for (const c of golden.cases) {
+    if (pauseMs) await new Promise((r) => setTimeout(r, pauseMs));
     // Isolation: earlier cases reuse the same photos on purpose (correct vs
     // mismatched description), which must not look like duplicate fraud.
     await clearEvalDocuments(db);

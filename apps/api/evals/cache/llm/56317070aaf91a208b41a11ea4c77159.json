@@ -1,0 +1,21 @@
+{
+ "value": {
+  "is_vehicle": true,
+  "damage_locations": [
+   "front bumper",
+   "front corner",
+   "headlight assembly"
+  ],
+  "severity_estimate": "moderate",
+  "matches_description": true,
+  "flags": [],
+  "confidence": 0.95,
+  "summary": "The photo clearly shows a cracked front bumper corner near the headlight, which is consistent with the customer's description of clipping a pole while parking."
+ },
+ "usage": {
+  "inputTokens": 1424,
+  "outputTokens": 113
+ },
+ "model": "gemini-flash-lite-latest",
+ "latencyMs": 1126
+}

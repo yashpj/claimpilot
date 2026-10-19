@@ -34,7 +34,10 @@ export const TRIAGE_CONFIG = {
   amountThresholdCents: 500_000,          // $5,000
   exifMaxDaysFromIncident: 7,
   maxNoProgressTurns: 4,                  // turns without progress => stalled
-  mlMinConfidence: 0.4,                   // detector score that counts as "damage seen"
+  // Detector score that counts as "damage seen". Tuned by the eval suite:
+  // 0.4 discarded real dents the detector found at 0.25-0.37 (41% VLM/ML
+  // disagreement); the undamaged control photo peaks at 0.19.
+  mlMinConfidence: 0.25,
   // Any of these => priority queue. Today that's every flag, which is exactly
   // spec §4. It's a list so tuning ("amount alone shouldn't escalate") is a
   // one-line, reviewable config change with an eval run, not a prompt edit.

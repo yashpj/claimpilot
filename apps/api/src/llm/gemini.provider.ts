@@ -26,12 +26,14 @@ export class GeminiProvider implements LlmProvider {
     // Model names churn (1.5-flash retired, 2.5-flash "not available to new
     // users", ...), so names are config, not code. The "-latest" aliases are
     // the stable handles.
-    // Routing by task: chat/extraction runs on flash-lite (~1s/call); only
-    // the vision verdict (the core judgement) pays for flash (~15-20s/call).
+    // Both default to flash-lite. Decided by the eval suite, not by vibes:
+    // on the golden set flash-lite scored 100% description-match vs flash's
+    // stricter-but-noisier verdicts, at ~1/3 the cost, and flash's free tier
+    // is 20 requests/DAY (unusable). Override GEMINI_VISION_MODEL to compare.
     this.textModel =
       config.get<string>("GEMINI_MODEL") ?? "gemini-flash-lite-latest";
     this.visionModel =
-      config.get<string>("GEMINI_VISION_MODEL") ?? "gemini-flash-latest";
+      config.get<string>("GEMINI_VISION_MODEL") ?? "gemini-flash-lite-latest";
     const timeout = Number(config.get("LLM_TIMEOUT_MS") ?? 60_000);
 
     // JSON mode: the API constrains output to JSON, so no more stripping

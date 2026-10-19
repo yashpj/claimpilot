@@ -1,0 +1,19 @@
+{
+ "value": {
+  "is_vehicle": true,
+  "damage_locations": [
+   "rear fender"
+  ],
+  "severity_estimate": "minor",
+  "matches_description": true,
+  "flags": [],
+  "confidence": 1,
+  "summary": "The photo shows a minor paint chip and scrape on the rear fender above the wheel, directly matching the customer's description."
+ },
+ "usage": {
+  "inputTokens": 1422,
+  "outputTokens": 95
+ },
+ "model": "gemini-flash-lite-latest",
+ "latencyMs": 1409
+}
