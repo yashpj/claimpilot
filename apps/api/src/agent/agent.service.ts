@@ -66,6 +66,16 @@ export class AgentService {
       : null;
   }
 
+  // Reconciliation: claims.status (DB) is the source of truth for decisions.
+  // If the checkpoint missed a decision (crash between commit and update),
+  // align the phase before the next run.
+  async syncPhase(claimId: string, phase: "done" | "more_info") {
+    await this.app.updateState(this.config(claimId), {
+      phase,
+      noProgressTurns: 0,
+    });
+  }
+
   // Human decisions happen OUTSIDE the graph (spec §4.5) and re-enter as a
   // state update, so the next customer message is routed correctly and the
   // agent's transcript contains the decision.

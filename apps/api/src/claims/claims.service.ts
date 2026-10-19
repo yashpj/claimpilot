@@ -35,6 +35,13 @@ const EXT_BY_MIME: Record<string, string> = {
 };
 export const ALLOWED_MIME = Object.keys(EXT_BY_MIME);
 const CLOSED: ClaimStatus[] = ["approved", "denied", "draft"];
+const PHASE_BY_DECIDED_STATUS: Partial<
+  Record<ClaimStatus, "done" | "more_info">
+> = {
+  approved: "done",
+  denied: "done",
+  more_info_requested: "more_info",
+};
 
 export type UploadedFile = {
   buffer: Buffer;
@@ -251,7 +258,16 @@ export class ClaimsService {
     const result = await this.db.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${claimId}))`);
 
-      const before = await this.agent.getState(claimId);
+      let before = await this.agent.getState(claimId);
+      const [claim] = await tx
+        .select({ status: schema.claims.status })
+        .from(schema.claims)
+        .where(eq(schema.claims.id, claimId));
+      const expected = PHASE_BY_DECIDED_STATUS[claim.status];
+      if (before && expected && before.phase !== expected) {
+        await this.agent.syncPhase(claimId, expected);
+        before = await this.agent.getState(claimId);
+      }
       const documents = await this.hydrateDocuments(claimId);
 
       let after;

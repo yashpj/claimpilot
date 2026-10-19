@@ -10,6 +10,8 @@ import { LlmModule } from "./llm/llm.module";
 import { ClaimsModule } from "./claims/claims.module";
 import { StorageModule } from "./storage/storage.module";
 import { HealthController } from "./health/health.controller";
+import { ReviewsModule } from "./reviews/reviews.module";
+import { MeController } from "./auth/me.controller";
 
 @Module({
   imports: [
@@ -26,7 +28,8 @@ import { HealthController } from "./health/health.controller";
     LlmModule,
     ClaimsModule,
     StorageModule,
+    ReviewsModule,
   ],
-  controllers: [HealthController],
+  controllers: [HealthController, MeController],
 })
 export class AppModule {}
