@@ -247,7 +247,18 @@ export class ClaimsService {
         ),
       );
     if (!doc) throw new NotFoundException();
-    return this.storage.get(doc.storagePath);
+    try {
+      return await this.storage.get(doc.storagePath);
+    } catch (err) {
+      // Row exists but the bytes don't (bucket wiped, wrong driver): a 404
+      // with a log line, not an opaque 500.
+      this.logger.error({
+        msg: "document bytes missing",
+        documentId,
+        err: String(err),
+      });
+      throw new NotFoundException("Document content unavailable");
+    }
   }
 
   // One agent turn, serialised per claim. Without the lock, uploading three
