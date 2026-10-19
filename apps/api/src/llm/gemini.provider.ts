@@ -17,36 +17,58 @@ export class GeminiProvider implements LlmProvider {
   private readonly logger = new Logger(GeminiProvider.name);
   private readonly text: GenerativeModel;
   private readonly json: GenerativeModel;
-  readonly modelName: string;
+  private readonly vision: GenerativeModel;
+  readonly textModel: string;
+  readonly visionModel: string;
 
   constructor(config: ConfigService) {
     const genAI = new GoogleGenerativeAI(config.getOrThrow("GEMINI_API_KEY"));
-    // Model names churn (1.5-flash retired, 2.0-flash limit:0, ...), so the
-    // name is config, not code. "gemini-flash-latest" is the stable alias.
-    this.modelName =
-      config.get<string>("GEMINI_MODEL") ?? "gemini-flash-latest";
-    const timeout = Number(config.get("LLM_TIMEOUT_MS") ?? 30_000);
-    this.text = genAI.getGenerativeModel(
-      { model: this.modelName },
-      { timeout },
-    );
+    // Model names churn (1.5-flash retired, 2.5-flash "not available to new
+    // users", ...), so names are config, not code. The "-latest" aliases are
+    // the stable handles.
+    // Routing by task: chat/extraction runs on flash-lite (~1s/call); only
+    // the vision verdict (the core judgement) pays for flash (~15-20s/call).
+    this.textModel =
+      config.get<string>("GEMINI_MODEL") ?? "gemini-flash-lite-latest";
+    this.visionModel =
+      config.get<string>("GEMINI_VISION_MODEL") ?? "gemini-flash-latest";
+    const timeout = Number(config.get("LLM_TIMEOUT_MS") ?? 60_000);
+
     // JSON mode: the API constrains output to JSON, so no more stripping
     // ```json fences with a regex. Shape is still validated by callers.
+    const jsonMode = { responseMimeType: "application/json" };
+    this.text = genAI.getGenerativeModel(
+      { model: this.textModel },
+      { timeout },
+    );
     this.json = genAI.getGenerativeModel(
-      {
-        model: this.modelName,
-        generationConfig: { responseMimeType: "application/json" },
-      },
+      { model: this.textModel, generationConfig: jsonMode },
+      { timeout },
+    );
+    this.vision = genAI.getGenerativeModel(
+      { model: this.visionModel, generationConfig: jsonMode },
       { timeout },
     );
   }
 
   async complete(req: LlmRequest): Promise<LlmResult<string>> {
-    return this.generate(this.text, req, [{ text: req.prompt }], (t) => t);
+    return this.generate(
+      this.text,
+      this.textModel,
+      req,
+      [{ text: req.prompt }],
+      (t) => t,
+    );
   }
 
   async extractJson(req: LlmRequest): Promise<LlmResult<unknown>> {
-    return this.generate(this.json, req, [{ text: req.prompt }], parseJson);
+    return this.generate(
+      this.json,
+      this.textModel,
+      req,
+      [{ text: req.prompt }],
+      parseJson,
+    );
   }
 
   async analyzeImages(
@@ -58,11 +80,12 @@ export class GeminiProvider implements LlmProvider {
         inlineData: { data: img.data, mimeType: img.mimeType },
       })),
     ];
-    return this.generate(this.json, req, parts, parseJson);
+    return this.generate(this.vision, this.visionModel, req, parts, parseJson);
   }
 
   private async generate<T>(
     model: GenerativeModel,
+    modelName: string,
     req: LlmRequest,
     parts: Part[],
     parse: (raw: string) => T,
@@ -92,7 +115,7 @@ export class GeminiProvider implements LlmProvider {
         inputTokens: usage?.promptTokenCount ?? 0,
         outputTokens: usage?.candidatesTokenCount ?? 0,
       },
-      model: this.modelName,
+      model: modelName,
       latencyMs: Date.now() - started,
     };
   }
@@ -105,6 +128,5 @@ function parseJson(raw: string): unknown {
 }
 
 function isRetryable(err: unknown): boolean {
-  const msg = String(err);
-  return /\b(429|500|502|503|504)\b/.test(msg);
+  return /\b(429|500|502|503|504)\b/.test(String(err));
 }

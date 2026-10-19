@@ -19,6 +19,9 @@ const extractionSchema = z.object({
   description: z.string().min(1).nullable().catch(null),
   // Dollars from the model (people talk in dollars); stored as cents.
   claimed_amount: z.number().nonnegative().nullable().catch(null),
+  // The customer-facing message, generated in the SAME call: one LLM round
+  // trip per turn instead of two (free-tier calls take 10-20s each).
+  reply: z.string().catch(""),
 });
 
 const FIELDS = [
@@ -43,12 +46,16 @@ export function makeIntakeNode({ db, llm, triageConfig, now }: AgentDeps) {
     const today = now().toISOString().slice(0, 10);
 
     const system =
-      "You are an insurance intake assistant. From the conversation, extract " +
-      "these exact JSON fields: " +
+      `${AGENT_PERSONA}\n\n` +
+      "From the conversation, return JSON with exactly these keys: " +
       '"date" (incident date, format YYYY-MM-DD), ' +
       '"location" (where it happened), ' +
       '"description" (what happened, including damaged parts), ' +
-      '"claimed_amount" (estimated repair cost in dollars, number). ' +
+      '"claimed_amount" (estimated repair cost in dollars, number), ' +
+      '"reply" (one short, friendly message to the customer asking for ' +
+      "whichever of those four are still missing; if they asked a question " +
+      "about the claims process answer it briefly first; empty string if " +
+      "nothing is missing). " +
       `Today is ${today}; resolve relative dates like "yesterday". ` +
       "Use null for any field not yet provided. Never invent values.";
 
@@ -60,6 +67,7 @@ export function makeIntakeNode({ db, llm, triageConfig, now }: AgentDeps) {
       location: null,
       description: null,
       claimed_amount: null,
+      reply: "",
     };
     const results = [];
     try {
@@ -160,24 +168,10 @@ export function makeIntakeNode({ db, llm, triageConfig, now }: AgentDeps) {
       };
     }
 
-    // 7. Ask for whatever's still missing.
+    // 7. Ask for whatever's still missing. The model's reply if it gave one,
+    // else a deterministic question (LLM down must not mean "no reply").
     const ask = missing.map((f) => FIELD_LABELS[f]).join(", ");
-    let reply = `Could you tell me ${ask}?`;
-    try {
-      const res = await llm.complete({
-        name: "intake.ask",
-        traceId,
-        system: AGENT_PERSONA,
-        prompt:
-          `Conversation so far:\n${transcriptOf(state.messages)}\n\n` +
-          `Write one short, friendly message asking the customer for: ${ask}. ` +
-          `If they asked a question, answer briefly first only if it is about the claims process.`,
-      });
-      results.push(res);
-      if (res.value.trim()) reply = res.value.trim();
-    } catch {
-      /* deterministic fallback above */
-    }
+    const reply = extracted.reply.trim() || `Could you tell me ${ask}?`;
 
     return {
       incident: update,

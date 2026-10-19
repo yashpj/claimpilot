@@ -44,7 +44,6 @@ afterAll(async () => {
 function setup(overrides: Record<string, (req: any) => unknown> = {}) {
   const llm = new FakeLlm({
     "intake.extract": intakeExtract,
-    "intake.ask": () => "Could you share the missing details?",
     "documents.extract": () => readableDocs,
     "consistency.vlm": () => goodVerdict,
     "followup.dispute": () => ({ disputes: false }),

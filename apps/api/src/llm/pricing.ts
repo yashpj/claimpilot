@@ -5,6 +5,7 @@ import type { LlmUsage } from "./llm.interface";
 // that matters, so we price as if paid. Update when the model changes.
 export const LLM_PRICING: Record<string, { input: number; output: number }> = {
   "gemini-flash-latest": { input: 0.3, output: 2.5 },
+  "gemini-flash-lite-latest": { input: 0.1, output: 0.4 },
   "gemini-2.5-flash": { input: 0.3, output: 2.5 },
   "gemini-2.5-flash-lite": { input: 0.1, output: 0.4 },
 };
