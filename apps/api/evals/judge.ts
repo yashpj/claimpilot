@@ -158,7 +158,8 @@ async function main() {
 }
 
 // Free tier: 15 requests/min per model.
-const pace = () => new Promise((r) => setTimeout(r, Number(process.env.JUDGE_DELAY_MS ?? 4500)));
+const pace = () =>
+  new Promise((r) => setTimeout(r, Number(process.env.JUDGE_DELAY_MS ?? 4500)));
 
 async function activePolicy(db: ReturnType<typeof drizzle<typeof schema>>) {
   const userId = randomUUID();
