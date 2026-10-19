@@ -1,26 +1,18 @@
-import { Inject, Injectable } from "@nestjs/common";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { SUPABASE_STORAGE } from "./storage.module";
 import type { ImagePart } from "../llm/llm.interface";
 
-const BUCKET = "claim-documents";
-
-@Injectable()
-export class StorageService {
-  constructor(
-    @Inject(SUPABASE_STORAGE) private readonly supabase: SupabaseClient,
-  ) {}
+// Storage is an interface with two drivers:
+// - "supabase": Supabase Storage (deployed; spec §2)
+// - "local": files on disk (local dev, CI, evals; no cloud account needed)
+// Callers depend on this abstract class (also the DI token), never a driver.
+export abstract class StorageService {
+  abstract put(path: string, data: Buffer, mimeType: string): Promise<void>;
+  abstract get(path: string): Promise<{ data: Buffer; mimeType: string }>;
+  // Short-lived public URL (Slack needs one to show a photo). Local driver
+  // has no public URL, so it returns null and callers degrade gracefully.
+  abstract signedUrl(path: string, ttlSeconds: number): Promise<string | null>;
 
   async getImage(path: string): Promise<ImagePart> {
-    const { data, error } = await this.supabase.storage
-      .from(BUCKET)
-      .download(path);
-    if (error || !data)
-      throw new Error(`download failed for ${path}: ${error?.message}`);
-    const buffer = Buffer.from(await data.arrayBuffer());
-    return {
-      data: buffer.toString("base64"),
-      mimeType: data.type || "image/jpeg",
-    };
+    const { data, mimeType } = await this.get(path);
+    return { data: data.toString("base64"), mimeType };
   }
 }
