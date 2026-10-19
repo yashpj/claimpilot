@@ -119,6 +119,7 @@ async function main() {
       );
       if (state.phase !== "intake") break;
     }
+    if (!state) continue;
     const transcript = transcriptOf(state.messages);
     const res = await llm.extractJson({
       name: "judge",
