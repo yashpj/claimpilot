@@ -140,7 +140,7 @@ async function main() {
   }
   await sql.end();
 
-  console.table(rows.map(({ notes: _n, ...r }) => r));
+  console.table(rows.map((r) => ({ ...r, notes: undefined })));
   const failed = rows.filter(
     (r) =>
       r.hallucinated_policy_terms ||

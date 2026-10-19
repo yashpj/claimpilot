@@ -10,7 +10,6 @@
  *   SEED_CUSTOMER_ID=<your supabase user id> SEED_REVIEWER_ID=<same or another id> pnpm seed
  * or just promote an existing account:  SEED_PROMOTE_EMAIL=you@example.com pnpm seed
  */
-import { ConfigService } from "@nestjs/config";
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
 import { EventEmitter2 } from "@nestjs/event-emitter";
@@ -304,7 +303,7 @@ async function main() {
         claimId: c.id,
         actor: "agent",
         eventType: "agent_message",
-        payload: { text: String(out.messages.at(-1)?.content ?? "") },
+        payload: { text: lastText(out.messages) },
       },
       {
         claimId: c.id,
@@ -331,6 +330,11 @@ async function main() {
   await checkpointer.end();
   await sql.end();
   console.log(`\ncustomer ${CUSTOMER}\nreviewer ${REVIEWER}`);
+}
+
+function lastText(messages: { content: unknown }[]) {
+  const c = messages.at(-1)?.content;
+  return typeof c === "string" ? c : JSON.stringify(c ?? "");
 }
 
 main().catch((e) => {
