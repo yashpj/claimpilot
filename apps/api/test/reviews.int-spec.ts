@@ -164,9 +164,8 @@ describe("reviews", () => {
       }),
     ]);
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
-    expect(results.find((r) => r.status === "rejected")).toMatchObject({
-      reason: expect.objectContaining({ status: 409 }),
-    });
+    const rejected = results.find((r) => r.status === "rejected");
+    expect((rejected?.reason as { status?: number }).status).toBe(409);
   });
 
   it("reconciles a missed checkpoint update from claims.status", async () => {
