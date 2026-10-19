@@ -1,0 +1,6 @@
+{
+  "tolerance": 0.05,
+  "descriptionMatchAccuracy": 0.8,
+  "falseFlagRate": 0.2,
+  "missedFlagRate": 0.2
+}

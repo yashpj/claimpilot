@@ -13,6 +13,7 @@ import { HealthController } from "./health/health.controller";
 import { ReviewsModule } from "./reviews/reviews.module";
 import { MeController } from "./auth/me.controller";
 import { ObservabilityModule } from "./observability/observability.module";
+import { SlackModule } from "./slack/slack.module";
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { ObservabilityModule } from "./observability/observability.module";
     ClaimsModule,
     StorageModule,
     ReviewsModule,
+    SlackModule,
   ],
   controllers: [HealthController, MeController],
 })
