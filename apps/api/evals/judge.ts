@@ -29,11 +29,19 @@ import { transcriptOf } from "../src/agent/nodes/common";
 const PERSONAS: { name: string; turns: string[] }[] = [
   {
     name: "all-at-once",
-    turns: ["Yesterday around 5pm someone rear-ended me at Queen St W and Bathurst, Toronto. Rear bumper is cracked and the trunk won't close. The shop says about $1,800."],
+    turns: [
+      "Yesterday around 5pm someone rear-ended me at Queen St W and Bathurst, Toronto. Rear bumper is cracked and the trunk won't close. The shop says about $1,800.",
+    ],
   },
   {
     name: "drip-feed",
-    turns: ["hi my car got hit", "it was on monday", "in the Walmart parking lot on Dixie Rd", "someone dented my passenger door and drove off", "maybe 900 bucks?"],
+    turns: [
+      "hi my car got hit",
+      "it was on monday",
+      "in the Walmart parking lot on Dixie Rd",
+      "someone dented my passenger door and drove off",
+      "maybe 900 bucks?",
+    ],
   },
   {
     name: "policy-bait",
@@ -46,7 +54,13 @@ const PERSONAS: { name: string; turns: string[] }[] = [
   },
   {
     name: "vague",
-    turns: ["something happened to my car", "an accident", "last friday on the 401 near exit 365, I scraped a guardrail, left side doors scratched", "no idea on cost", "ok maybe $1,000"],
+    turns: [
+      "something happened to my car",
+      "an accident",
+      "last friday on the 401 near exit 365, I scraped a guardrail, left side doors scratched",
+      "no idea on cost",
+      "ok maybe $1,000",
+    ],
   },
 ];
 
@@ -69,12 +83,15 @@ const JUDGE_SYSTEM = [
 ].join(" ");
 
 async function main() {
-  const url = process.env.EVAL_DATABASE_URL ?? "postgresql://claimpilot:localdev@localhost:5433/claimpilot_test";
+  const url =
+    process.env.EVAL_DATABASE_URL ??
+    "postgresql://claimpilot:localdev@localhost:5433/claimpilot_test";
   const sql = postgres(url, { max: 2 });
   const db = drizzle(sql, { schema });
   const llm = new GeminiProvider(new ConfigService(process.env));
   const graph = buildClaimGraph({
-    db, llm,
+    db,
+    llm,
     ml: new MlClient(null, 0),
     storage: new LocalStorageService("/tmp"),
     tracer: new NoopTracer(),
@@ -85,25 +102,51 @@ async function main() {
   const policyId = await activePolicy(db);
   const rows = [];
   for (const p of PERSONAS) {
-    const [claim] = await db.insert(schema.claims).values({ policyId, status: "intake" }).returning();
+    const [claim] = await db
+      .insert(schema.claims)
+      .values({ policyId, status: "intake" })
+      .returning();
     const cfg = { configurable: { thread_id: claim.id } };
     let state;
     for (const t of p.turns) {
-      state = await graph.invoke({ claimId: claim.id, messages: [new HumanMessage(t)], documents: { damagePhotos: [] } }, cfg);
+      state = await graph.invoke(
+        {
+          claimId: claim.id,
+          messages: [new HumanMessage(t)],
+          documents: { damagePhotos: [] },
+        },
+        cfg,
+      );
       if (state.phase !== "intake") break;
     }
-    const transcript = transcriptOf(state!.messages);
-    const res = await llm.extractJson({ name: "judge", system: JUDGE_SYSTEM, prompt: transcript });
+    const transcript = transcriptOf(state.messages);
+    const res = await llm.extractJson({
+      name: "judge",
+      system: JUDGE_SYSTEM,
+      prompt: transcript,
+    });
     const verdict = verdictSchema.parse(res.value);
-    const i = state!.incident;
-    const fieldsInState = !!(i.date && i.location && i.description && i.claimedAmountCents !== undefined);
+    const i = state.incident;
+    const fieldsInState = !!(
+      i.date &&
+      i.location &&
+      i.description &&
+      i.claimedAmountCents !== undefined
+    );
     rows.push({ persona: p.name, fieldsInState, ...verdict });
-    console.log(`\n--- ${p.name}\n${transcript}\n=> ${JSON.stringify({ fieldsInState, ...verdict })}`);
+    console.log(
+      `\n--- ${p.name}\n${transcript}\n=> ${JSON.stringify({ fieldsInState, ...verdict })}`,
+    );
   }
   await sql.end();
 
   console.table(rows.map(({ notes: _n, ...r }) => r));
-  const failed = rows.filter((r) => r.hallucinated_policy_terms || r.answered_off_topic_or_promised_outcome || !r.fieldsInState);
+  const failed = rows.filter(
+    (r) =>
+      r.hallucinated_policy_terms ||
+      r.answered_off_topic_or_promised_outcome ||
+      !r.fieldsInState,
+  );
   if (failed.length) {
     console.error(`FAIL: ${failed.map((r) => r.persona).join(", ")}`);
     process.exit(1);
@@ -113,17 +156,40 @@ async function main() {
 
 async function activePolicy(db: ReturnType<typeof drizzle<typeof schema>>) {
   const userId = randomUUID();
-  await db.insert(schema.users).values({ id: userId, email: `judge-${userId}@claimpilot.test` });
-  const [v] = await db.insert(schema.vehicles).values({
-    ownerId: userId, make: "Judge", model: "Car", year: 2021, registration: "J", declaredValue: 2_000_000,
-  }).returning();
-  const start = new Date(); start.setMonth(start.getMonth() - 3);
-  const end = new Date(); end.setMonth(end.getMonth() + 9);
-  const [p] = await db.insert(schema.policies).values({
-    userId, vehicleId: v.id, planType: "comprehensive", premium: 60_000, status: "active",
-    coverageStart: start, coverageEnd: end,
-  }).returning();
+  await db
+    .insert(schema.users)
+    .values({ id: userId, email: `judge-${userId}@claimpilot.test` });
+  const [v] = await db
+    .insert(schema.vehicles)
+    .values({
+      ownerId: userId,
+      make: "Judge",
+      model: "Car",
+      year: 2021,
+      registration: "J",
+      declaredValue: 2_000_000,
+    })
+    .returning();
+  const start = new Date();
+  start.setMonth(start.getMonth() - 3);
+  const end = new Date();
+  end.setMonth(end.getMonth() + 9);
+  const [p] = await db
+    .insert(schema.policies)
+    .values({
+      userId,
+      vehicleId: v.id,
+      planType: "comprehensive",
+      premium: 60_000,
+      status: "active",
+      coverageStart: start,
+      coverageEnd: end,
+    })
+    .returning();
   return p.id;
 }
 
-main().catch((e) => { console.error(e); process.exit(2); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(2);
+});

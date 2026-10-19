@@ -6,6 +6,7 @@
     "dist",
     "evals",
     "**/*spec.ts",
-    ".scratch"
+    ".scratch",
+    "scripts"
   ]
 }

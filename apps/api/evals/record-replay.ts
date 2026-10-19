@@ -21,12 +21,16 @@ import { MlClient } from "../src/agent/ml/ml.client";
 // re-records => prompt changes can't merge without a fresh live eval.
 export type Mode = "record" | "rerecord" | "replay" | "live";
 
-const sha = (s: string | Buffer) => createHash("sha256").update(s).digest("hex");
+const sha = (s: string | Buffer) =>
+  createHash("sha256").update(s).digest("hex");
 
 export class CacheMiss extends Error {}
 
 class Cassettes {
-  constructor(private readonly dir: string, private readonly mode: Mode) {
+  constructor(
+    private readonly dir: string,
+    private readonly mode: Mode,
+  ) {
     mkdirSync(dir, { recursive: true });
   }
 
@@ -38,7 +42,8 @@ class Cassettes {
       return JSON.parse(readFileSync(file, "utf8")) as T;
     }
     const value = await real();
-    if (this.mode !== "live") writeFileSync(file, JSON.stringify(value, null, 1));
+    if (this.mode !== "live")
+      writeFileSync(file, JSON.stringify(value, null, 1));
     return value;
   }
 }
@@ -56,10 +61,15 @@ export class RecordReplayLlm implements LlmProvider {
   }
 
   private key(req: LlmRequest, images: ImagePart[] = []) {
-    return sha(JSON.stringify({
-      m: this.modelTag, n: req.name, s: req.system, p: req.prompt,
-      i: images.map((img) => sha(img.data)),
-    }));
+    return sha(
+      JSON.stringify({
+        m: this.modelTag,
+        n: req.name,
+        s: req.system,
+        p: req.prompt,
+        i: images.map((img) => sha(img.data)),
+      }),
+    );
   }
 
   private realOrThrow() {
@@ -68,20 +78,32 @@ export class RecordReplayLlm implements LlmProvider {
   }
 
   complete(req: LlmRequest): Promise<LlmResult<string>> {
-    return this.tape.through(this.key(req), () => this.realOrThrow().complete(req));
+    return this.tape.through(this.key(req), () =>
+      this.realOrThrow().complete(req),
+    );
   }
   extractJson(req: LlmRequest): Promise<LlmResult<unknown>> {
-    return this.tape.through(this.key(req), () => this.realOrThrow().extractJson(req));
+    return this.tape.through(this.key(req), () =>
+      this.realOrThrow().extractJson(req),
+    );
   }
-  analyzeImages(req: LlmRequest & { images: ImagePart[] }): Promise<LlmResult<unknown>> {
-    return this.tape.through(this.key(req, req.images), () => this.realOrThrow().analyzeImages(req));
+  analyzeImages(
+    req: LlmRequest & { images: ImagePart[] },
+  ): Promise<LlmResult<unknown>> {
+    return this.tape.through(this.key(req, req.images), () =>
+      this.realOrThrow().analyzeImages(req),
+    );
   }
 }
 
 export class RecordReplayMl extends MlClient {
   private readonly tape: Cassettes;
 
-  constructor(private readonly real: MlClient, dir: string, mode: Mode) {
+  constructor(
+    private readonly real: MlClient,
+    dir: string,
+    mode: Mode,
+  ) {
     super(null, 0);
     this.tape = new Cassettes(dir, mode);
   }

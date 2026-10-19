@@ -21,7 +21,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint:fix": "eslint \"{src,test}/**/*.ts\" --fix",
     "eval": "TS_NODE_TRANSPILE_ONLY=1 TS_NODE_PROJECT=tsconfig.json node --env-file-if-exists=.env -r ts-node/register evals/run-evals.ts",
-    "judge": "TS_NODE_TRANSPILE_ONLY=1 TS_NODE_PROJECT=tsconfig.json node --env-file-if-exists=.env -r ts-node/register evals/judge.ts"
+    "judge": "TS_NODE_TRANSPILE_ONLY=1 TS_NODE_PROJECT=tsconfig.json node --env-file-if-exists=.env -r ts-node/register evals/judge.ts",
+    "seed": "TS_NODE_TRANSPILE_ONLY=1 TS_NODE_PROJECT=tsconfig.json node --env-file-if-exists=.env -r ts-node/register scripts/seed.ts"
   },
   "dependencies": {
     "@claimpilot/db": "workspace:^",
