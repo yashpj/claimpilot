@@ -1,0 +1,6 @@
+apiVersion: v2
+name: claimpilot
+description: ClaimPilot - api, web, ml-service, postgres (local k3d)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

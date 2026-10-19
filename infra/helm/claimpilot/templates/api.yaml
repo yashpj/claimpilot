@@ -1,0 +1,117 @@
+{{- $ctx := dict "root" . "name" "api" -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+  labels: {{- include "cp.labels" $ctx | nindent 4 }}
+data:
+  {{- toYaml .Values.api.config | nindent 2 }}
+  ML_SERVICE_URL: "http://ml-service:8000"
+  METRICS_PORT: "9464"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  labels: {{- include "cp.labels" $ctx | nindent 4 }}
+spec:
+  {{- if not .Values.api.hpa.enabled }}
+  replicas: {{ .Values.api.replicas }}
+  {{- end }}
+  # With an HPA, the HPA owns replicas; setting it here too would fight it
+  # on every `helm upgrade`.
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels: {{- include "cp.selector" $ctx | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0    # a bad image never reduces serving capacity...
+      maxSurge: 1          # ...it just sits un-Ready while old pods keep serving
+  template:
+    metadata:
+      labels: {{- include "cp.labels" $ctx | nindent 8 }}
+      annotations:
+        # Config changes roll the pods (env is only read at start).
+        checksum/config: {{ toYaml .Values.api.config | sha256sum }}
+    spec:
+      terminationGracePeriodSeconds: 60   # let in-flight agent turns (~30s) finish
+      {{- include "cp.podSecurity" . | nindent 6 }}
+      containers:
+        - name: api
+          image: {{ include "cp.image" $ctx }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - { name: http, containerPort: 3000 }
+            - { name: metrics, containerPort: 9464 }
+          envFrom:
+            - configMapRef: { name: api-config }
+            - secretRef: { name: {{ .Values.existingSecrets.api }} }
+          resources: {{- toYaml .Values.api.resources | nindent 12 }}
+          startupProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:          # process wedged? -> restart. No dependencies.
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:         # can serve (DB reachable)? -> receive traffic.
+            httpGet: { path: /health/ready, port: http }
+            periodSeconds: 5
+            failureThreshold: 2
+          lifecycle:
+            # Endpoint removal propagates to the ingress asynchronously; wait a
+            # beat before shutting down so no request hits a closing pod.
+            preStop:
+              exec: { command: ["sleep", "5"] }
+          {{- include "cp.containerSecurity" . | nindent 10 }}
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  labels: {{- include "cp.labels" $ctx | nindent 4 }}
+spec:
+  selector: {{- include "cp.selector" $ctx | nindent 4 }}
+  ports:
+    - { name: http, port: 3000, targetPort: http }
+    - { name: metrics, port: 9464, targetPort: metrics }
+{{- if .Values.api.hpa.enabled }}
+---
+# CPU-based autoscaling. Needs metrics-server (k3s ships it).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api
+  labels: {{- include "cp.labels" $ctx | nindent 4 }}
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: api }
+  minReplicas: {{ .Values.api.hpa.minReplicas }}
+  maxReplicas: {{ .Values.api.hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: {{ .Values.api.hpa.targetCPUUtilizationPercentage }} }
+  behavior:
+    scaleDown:
+      # Don't flap: wait 2 minutes of low load before removing pods.
+      stabilizationWindowSeconds: 120
+{{- end }}
+---
+# Voluntary disruptions (node drain, cluster upgrade) may not take the API
+# below 1 Ready pod. Doesn't protect against crashes; replicas do that.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api
+spec:
+  minAvailable: {{ .Values.api.pdb.minAvailable }}
+  selector:
+    matchLabels: {{- include "cp.selector" $ctx | nindent 6 }}

@@ -1,0 +1,74 @@
+{{- if .Values.monitoring.enabled }}
+# Prometheus Operator discovers scrape targets via ServiceMonitor objects
+# (instead of hand-edited prometheus.yml).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: claimpilot
+  labels:
+    release: {{ .Values.monitoring.release }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: claimpilot
+  endpoints:
+    - port: metrics     # api:9464
+      path: /metrics
+      interval: 15s
+    - port: http        # ml-service:8000/metrics (api/web have no /metrics on http)
+      path: /metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: claimpilot
+  labels:
+    release: {{ .Values.monitoring.release }}
+spec:
+  groups:
+    - name: claimpilot.rules
+      rules:
+        # The spec'd alert: error-rate spike -> Slack (via Alertmanager).
+        - alert: ApiHighErrorRate
+          expr: |
+            sum(rate(http_request_duration_seconds_count{status=~"5.."}[5m]))
+              / clamp_min(sum(rate(http_request_duration_seconds_count[5m])), 1e-9) > 0.05
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: "API 5xx rate above 5% for 5 minutes"
+            description: "{{`{{ $value | humanizePercentage }}`}} of requests are failing. Check pod logs and /health/ready."
+        # Non-agent routes only: an agent turn waits on an LLM by design.
+        - alert: ApiSlowRequests
+          expr: |
+            histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{route!~"/claims/:id/(messages|documents)"}[10m]))) > 1
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "p95 latency of non-agent API routes above 1s"
+        - alert: LlmErrorRateHigh
+          expr: |
+            sum(rate(llm_calls_total{outcome="error"}[10m])) / clamp_min(sum(rate(llm_calls_total[10m])), 1e-9) > 0.2
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "More than 20% of LLM calls failing (quota? model retired?)"
+            description: "Claims still flow (analysis_incomplete) but reviewers lose the agent's analysis."
+        - alert: PodRestartLoop
+          expr: increase(kube_pod_container_status_restarts_total{namespace="{{ .Release.Namespace }}"}[15m]) > 3
+          labels: { severity: warning }
+          annotations:
+            summary: "{{`{{ $labels.pod }}`}} restarted more than 3 times in 15m"
+---
+# Grafana's sidecar loads any ConfigMap with this label as a dashboard.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claimpilot-dashboard
+  labels:
+    grafana_dashboard: "1"
+data:
+  claimpilot.json: |-
+{{ .Files.Get "dashboards/claimpilot.json" | indent 4 }}
+{{- end }}

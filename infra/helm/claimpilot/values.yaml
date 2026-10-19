@@ -1,0 +1,72 @@
+# Image tag = git SHA, set per deploy:  --set image.tag=$(git rev-parse HEAD)
+# There is deliberately no default: `latest` is not a version.
+image:
+  registry: ghcr.io/yashpj
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# Secrets are NOT in values. Create them first (infra/k8s/create-secrets.sh):
+#   claimpilot-api       DATABASE_URL, SUPABASE_*, GEMINI_API_KEY, STRIPE_*, SLACK_*, LANGFUSE_*
+#   claimpilot-postgres  POSTGRES_PASSWORD
+existingSecrets:
+  api: claimpilot-api
+  postgres: claimpilot-postgres
+
+api:
+  replicas: 2
+  config:
+    STORAGE_DRIVER: supabase        # local driver would be per-pod (emptyDir); not valid with >1 replica
+    GEMINI_MODEL: gemini-flash-lite-latest
+    GEMINI_VISION_MODEL: gemini-flash-lite-latest
+    WEB_ORIGIN: http://claimpilot.localhost:8081
+    DB_POOL_MAX: "5"
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70   # % of the CPU *request*
+  pdb:
+    minAvailable: 1
+
+web:
+  replicas: 2
+  resources:
+    requests: { cpu: 25m, memory: 32Mi }
+    limits: { cpu: 200m, memory: 64Mi }
+  pdb:
+    minAvailable: 1
+
+mlService:
+  enabled: true
+  replicas: 1
+  resources:
+    requests: { cpu: 250m, memory: 768Mi }
+    limits: { cpu: "1", memory: 1536Mi }
+  # torch import + weights load: give it up to 5 minutes before liveness
+  # starts judging (on a cold, CPU-starved node this really happens).
+  startupProbe:
+    periodSeconds: 5
+    failureThreshold: 60
+
+postgres:
+  enabled: true
+  image: postgres:16-alpine
+  storage: 1Gi
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+ingress:
+  enabled: true
+  host: claimpilot.localhost
+
+migrations:
+  enabled: true
+
+monitoring:
+  # Requires kube-prometheus-stack (ServiceMonitor/PrometheusRule CRDs).
+  enabled: false
+  release: kube-prometheus-stack   # label Prometheus uses to select monitors

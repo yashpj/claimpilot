@@ -1,0 +1,35 @@
+{{- if .Values.migrations.enabled }}
+{{- $ctx := dict "root" . "name" "api" -}}
+# Migrations run BEFORE the new api pods roll out (pre-upgrade hook), from
+# the same image (= same SHA = same migrations). If they fail, the upgrade
+# stops and the old version keeps serving. Rule that makes this safe:
+# migrations must be backward compatible with the previous app version
+# (expand -> deploy -> contract), because old pods still run during rollout.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate-{{ .Values.image.tag | trunc 12 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: Never
+      {{- include "cp.podSecurity" . | nindent 6 }}
+      containers:
+        - name: migrate
+          image: {{ include "cp.image" $ctx }}
+          command: ["node", "node_modules/@claimpilot/db/dist/migrate.js"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.existingSecrets.api }}, key: DATABASE_URL }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          {{- include "cp.containerSecurity" . | nindent 10 }}
+{{- end }}
