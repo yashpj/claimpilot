@@ -34,21 +34,20 @@ export const ClaimState = Annotation.Root({
 
   // Current phase within the agent. Replaces (scalar).
   phase: Annotation<"intake" | "documents" | "analysis" | "triage" | "done">({
-    value: (_existing, update) => update,   // replace
+    value: (_existing, update) => update, // replace
     default: () => "intake",
   }),
 
   analysis: Annotation<{
-  observedDamage?: string;
-  matchesDescription?: boolean;
-  confidence?: number;
-  discrepancies?: string[];
-  status?: "complete" | "failed" | "skipped";
-    }>(
-      {
-      value: (existing, update) => ({ ...existing, ...update }),
-      default: () => ({}),
-    }),
+    observedDamage?: string;
+    matchesDescription?: boolean;
+    confidence?: number;
+    discrepancies?: string[];
+    status?: "complete" | "failed" | "skipped";
+  }>({
+    value: (existing, update) => ({ ...existing, ...update }),
+    default: () => ({}),
+  }),
 });
 
 export type ClaimStateType = typeof ClaimState.State;

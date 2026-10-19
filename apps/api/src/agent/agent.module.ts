@@ -14,11 +14,11 @@ import { CHECKPOINTER } from "./agent.tokens";
         const saver = PostgresSaver.fromConnString(
           config.getOrThrow("DATABASE_URL"),
         );
-        await saver.setup();   // creates checkpoint tables if absent
+        await saver.setup(); // creates checkpoint tables if absent
         return saver;
-      }
+      },
     },
-    AgentService
+    AgentService,
   ],
   exports: [CHECKPOINTER, AgentService],
 })

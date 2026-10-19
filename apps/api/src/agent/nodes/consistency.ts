@@ -4,8 +4,8 @@ import type { ClaimStateType } from "../state";
 
 // The structured verdict we demand from the VLM.
 const consistencySchema = z.object({
-  observedDamage: z.string(),        // what the model sees in the photos
-  matchesDescription: z.boolean(),   // does it fit the customer's story
+  observedDamage: z.string(), // what the model sees in the photos
+  matchesDescription: z.boolean(), // does it fit the customer's story
   confidence: z.number().min(0).max(1),
   discrepancies: z.array(z.string()), // specific mismatches, if any
 });
@@ -16,7 +16,10 @@ export function makeConsistencyNode({ llm, storage }: AgentDeps) {
 
     // No photos → nothing to analyze. Skip, let triage/human handle it.
     if (!photos.length) {
-      return { analysis: { status: "skipped" as const }, phase: "triage" as const };
+      return {
+        analysis: { status: "skipped" as const },
+        phase: "triage" as const,
+      };
     }
 
     try {
@@ -36,7 +39,10 @@ export function makeConsistencyNode({ llm, storage }: AgentDeps) {
       // Untrusted output — validate.
       const parsed = consistencySchema.safeParse(raw);
       if (!parsed.success) {
-        return { analysis: { status: "failed" as const }, phase: "triage" as const };
+        return {
+          analysis: { status: "failed" as const },
+          phase: "triage" as const,
+        };
       }
 
       return {
@@ -46,7 +52,10 @@ export function makeConsistencyNode({ llm, storage }: AgentDeps) {
     } catch {
       // VLM/storage failure (429, download error) — DON'T block the claim.
       // Mark failed, route to human. This is the 4.1 rule made real.
-      return { analysis: { status: "failed" as const }, phase: "triage" as const };
+      return {
+        analysis: { status: "failed" as const },
+        phase: "triage" as const,
+      };
     }
   };
 }

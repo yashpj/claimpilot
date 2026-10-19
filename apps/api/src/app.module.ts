@@ -19,7 +19,7 @@ import { StorageModule } from "./storage/storage.module";
     AgentModule,
     LlmModule,
     ClaimsModule,
-    StorageModule
+    StorageModule,
   ],
 })
 export class AppModule {}

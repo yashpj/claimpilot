@@ -8,7 +8,7 @@ import { eq } from "drizzle-orm";
 
 // What we try to extract from the conversation so far.
 const extractionSchema = z.object({
-  date: z.string().nullable(),          // ISO date or null if not yet given
+  date: z.string().nullable(), // ISO date or null if not yet given
   location: z.string().nullable(),
   description: z.string().nullable(),
 });
@@ -19,14 +19,14 @@ export function makeIntakeNode({ db, llm }: AgentDeps) {
       .map((m) => `${m.getType()}: ${m.content}`)
       .join("\n");
 
-const system =
-  "You are an insurance intake assistant. From the conversation, extract " +
-  "these exact JSON fields: " +
-  '"date" (the incident date in ISO format YYYY-MM-DD), ' +
-  '"location" (where it happened), ' +
-  '"description" (what happened). ' +
-  "Use null for any field not yet provided. " +
-  "Use exactly these key names: date, location, description.";
+    const system =
+      "You are an insurance intake assistant. From the conversation, extract " +
+      "these exact JSON fields: " +
+      '"date" (the incident date in ISO format YYYY-MM-DD), ' +
+      '"location" (where it happened), ' +
+      '"description" (what happened). ' +
+      "Use null for any field not yet provided. " +
+      "Use exactly these key names: date, location, description.";
     // 1. LLM extracts structured data from free-form chat.
     const raw = await llm.extractJson<unknown>(transcript, system);
 
@@ -40,48 +40,56 @@ const system =
     const incidentUpdate: Record<string, string> = {};
     if (extracted.date) incidentUpdate.date = extracted.date;
     if (extracted.location) incidentUpdate.location = extracted.location;
-    if (extracted.description) incidentUpdate.description = extracted.description;
+    if (extracted.description)
+      incidentUpdate.description = extracted.description;
 
     const merged = { ...state.incident, ...incidentUpdate };
     const complete = merged.date && merged.location && merged.description;
 
-        // NEW: once we have a date, validate coverage before advancing.
+    // NEW: once we have a date, validate coverage before advancing.
     if (merged.date) {
-      const [claim] = await db.select().from(schema.claims)
+      const [claim] = await db
+        .select()
+        .from(schema.claims)
         .where(eq(schema.claims.id, state.claimId));
-      const [policy] = await db.select().from(schema.policies)
+      const [policy] = await db
+        .select()
+        .from(schema.policies)
         .where(eq(schema.policies.id, claim.policyId));
 
       const incidentDate = new Date(merged.date);
       const active = policy.status === "active";
       const inWindow =
-        policy.coverageStart && policy.coverageEnd &&
+        policy.coverageStart &&
+        policy.coverageEnd &&
         incidentDate >= policy.coverageStart &&
         incidentDate <= policy.coverageEnd;
 
       if (!active || !inWindow) {
         return {
           incident: incidentUpdate,
-          phase: "done" as const,   // terminate politely
-          messages: [new AIMessage(
-            !active
-              ? "This policy isn't active, so I can't file a claim against it."
-              : "The incident date falls outside your coverage period, so this claim can't be filed.",
-          )],
+          phase: "done" as const, // terminate politely
+          messages: [
+            new AIMessage(
+              !active
+                ? "This policy isn't active, so I can't file a claim against it."
+                : "The incident date falls outside your coverage period, so this claim can't be filed.",
+            ),
+          ],
         };
       }
     }
-
-
 
     // 4. Decide the reply.
     if (complete) {
       return {
         incident: incidentUpdate,
         phase: "documents" as const,
-        messages: [new AIMessage(
-          "Thanks — I have the incident details. Now I'll need some documents.",
-        )],
+        messages: [
+          new AIMessage(
+            "Thanks — I have the incident details. Now I'll need some documents.",
+          ),
+        ],
       };
     }
 
@@ -91,7 +99,7 @@ const system =
     );
     const reply = await llm.complete(
       `Ask the user politely for these missing details: ${missing.join(", ")}. ` +
-      `Keep it to one short message.`,
+        `Keep it to one short message.`,
     );
 
     return {

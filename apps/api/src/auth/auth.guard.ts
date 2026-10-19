@@ -9,20 +9,19 @@ import { ConfigService } from "@nestjs/config";
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-//   private supabase = createClient(
-//     process.env.SUPABASE_URL!,
-//     process.env.SUPABASE_ANON_KEY!,
-//   );
+  //   private supabase = createClient(
+  //     process.env.SUPABASE_URL!,
+  //     process.env.SUPABASE_ANON_KEY!,
+  //   );
 
   private supabase: SupabaseClient;
 
   constructor(private config: ConfigService) {
     this.supabase = createClient(
-      this.config.getOrThrow("SUPABASE_URL"),   // getOrThrow = loud failure if missing
+      this.config.getOrThrow("SUPABASE_URL"), // getOrThrow = loud failure if missing
       this.config.getOrThrow("SUPABASE_ANON_KEY"),
     );
   }
-
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();

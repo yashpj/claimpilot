@@ -20,9 +20,11 @@ export function makeDocumentsNode({ db }: AgentDeps) {
     if (missing.length === 0) {
       return {
         phase: "analysis" as const,
-        messages: [new AIMessage(
-          "Got all your documents. Let me analyze the damage now.",
-        )],
+        messages: [
+          new AIMessage(
+            "Got all your documents. Let me analyze the damage now.",
+          ),
+        ],
       };
     }
 

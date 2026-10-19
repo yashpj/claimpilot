@@ -17,18 +17,17 @@ export class AgentService {
   //   this.app = buildClaimGraph().compile({ checkpointer });
   // }
 
-constructor(
-  @Inject(CHECKPOINTER) checkpointer: PostgresSaver,
-  @Inject(llmInterface.LLM) llm: llmInterface.LlmProvider,
-  @Inject(DRIZZLE) db: PostgresJsDatabase<typeof schema>,
-  private readonly storage: StorageService,   // NEW
-) {
-  const deps = { db, llm, storage };
-  this.app = buildClaimGraph(deps).compile({ checkpointer });
-}
+  constructor(
+    @Inject(CHECKPOINTER) checkpointer: PostgresSaver,
+    @Inject(llmInterface.LLM) llm: llmInterface.LlmProvider,
+    @Inject(DRIZZLE) db: PostgresJsDatabase<typeof schema>,
+    private readonly storage: StorageService, // NEW
+  ) {
+    const deps = { db, llm, storage };
+    this.app = buildClaimGraph(deps).compile({ checkpointer });
+  }
 
-async invoke(input: Partial<ClaimStateType>, config: any) {
-  return this.app.invoke(input, config);
+  async invoke(input: Partial<ClaimStateType>, config: any) {
+    return this.app.invoke(input, config);
+  }
 }
-}
-

@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from "@nestjs/common";
 import { AuthGuard } from "../auth/auth.guard";
 import { ClaimsService } from "./claims.service";
 
@@ -18,7 +26,11 @@ export class ClaimsController {
   }
 
   @Post(":id/messages")
-  message(@Param("id") id: string, @Body() body: { text: string }, @Req() req: any) {
+  message(
+    @Param("id") id: string,
+    @Body() body: { text: string },
+    @Req() req: any,
+  ) {
     return this.claims.sendMessage(req.user.id, id, body.text);
   }
 }

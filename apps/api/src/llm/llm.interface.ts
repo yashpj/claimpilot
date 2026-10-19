@@ -1,6 +1,6 @@
 export interface ImagePart {
-  data: string;      // base64
-  mimeType: string;  // e.g. "image/jpeg"
+  data: string; // base64
+  mimeType: string; // e.g. "image/jpeg"
 }
 
 export interface LlmProvider {
@@ -8,8 +8,12 @@ export interface LlmProvider {
   extractJson<T>(prompt: string, systemPrompt?: string): Promise<T>;
   // Plain text completion (for conversational replies).
   complete(prompt: string, systemPrompt?: string): Promise<string>;
-    // NEW: multimodal — prompt + images → structured JSON verdict.
-  analyzeImages<T>(prompt: string, images: ImagePart[], systemPrompt?: string): Promise<T>;
+  // NEW: multimodal — prompt + images → structured JSON verdict.
+  analyzeImages<T>(
+    prompt: string,
+    images: ImagePart[],
+    systemPrompt?: string,
+  ): Promise<T>;
 }
 
 export const LLM = Symbol("LLM");

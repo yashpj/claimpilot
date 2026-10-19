@@ -21,9 +21,9 @@ import { makeIntakeNode } from "./nodes/intake";
 import type { LlmProvider } from "../llm/llm.interface";
 import { AgentDeps } from "./deps";
 
-export function buildClaimGraph(deps: AgentDeps)  {
+export function buildClaimGraph(deps: AgentDeps) {
   return new StateGraph(ClaimState)
     .addNode("intake", makeIntakeNode(deps))
     .addEdge(START, "intake")
-    .addEdge("intake", END);   // one node for now; 3.4 adds documents
+    .addEdge("intake", END); // one node for now; 3.4 adds documents
 }

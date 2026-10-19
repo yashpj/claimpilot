@@ -23,15 +23,19 @@ export class WebhooksService {
         });
 
         if (event.type === "checkout.session.completed") {
-          const session = event.data.object as Stripe.Checkout.Session;
+          const session = event.data.object;
           await this.activatePolicy(tx, session);
         }
         // Other event types: recorded as processed, no action. Intentional.
       });
     } catch (err: any) {
-        if (err?.code === "23505" || err?.cause?.code === "23505") { // Postgres unique_violation
-        this.logger.log({ msg: "Duplicate webhook ignored", eventId: event.id });
-        return;                       // Not an error. Idempotency working.
+      if (err?.code === "23505" || err?.cause?.code === "23505") {
+        // Postgres unique_violation
+        this.logger.log({
+          msg: "Duplicate webhook ignored",
+          eventId: event.id,
+        });
+        return; // Not an error. Idempotency working.
       }
       throw err;
     }
@@ -40,7 +44,10 @@ export class WebhooksService {
   private async activatePolicy(tx: any, session: Stripe.Checkout.Session) {
     const policyId = session.metadata?.policyId;
     if (!policyId) {
-      this.logger.error({ msg: "Session missing policyId metadata", sessionId: session.id });
+      this.logger.error({
+        msg: "Session missing policyId metadata",
+        sessionId: session.id,
+      });
       return;
     }
 
@@ -65,7 +72,8 @@ export class WebhooksService {
         status: "active",
         coverageStart: start,
         coverageEnd: end,
-        stripeCustomerId: typeof session.customer === "string" ? session.customer : null,
+        stripeCustomerId:
+          typeof session.customer === "string" ? session.customer : null,
       })
       .where(eq(schema.policies.id, policyId));
 
