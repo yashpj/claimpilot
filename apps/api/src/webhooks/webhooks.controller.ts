@@ -1,3 +1,5 @@
+import type { Request } from "express";
+import type { RawBodyRequest } from "@nestjs/common";
 import {
   Controller,
   Post,
@@ -24,7 +26,7 @@ export class WebhooksController {
 
   @Post("stripe")
   async handleStripe(
-    @Req() req: any,
+    @Req() req: RawBodyRequest<Request>,
     @Headers("stripe-signature") signature: string,
   ) {
     let event: Stripe.Event;
@@ -32,11 +34,11 @@ export class WebhooksController {
     // 1. Verify it's really Stripe — over the RAW bytes.
     try {
       event = this.stripe.webhooks.constructEvent(
-        req.rawBody,
+        req.rawBody ?? "",
         signature,
         this.config.getOrThrow("STRIPE_WEBHOOK_SECRET"),
       );
-    } catch (err) {
+    } catch {
       this.logger.warn({ msg: "Invalid webhook signature" });
       throw new BadRequestException("Invalid signature");
     }

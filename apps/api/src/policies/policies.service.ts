@@ -8,7 +8,7 @@ import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import * as schema from "@claimpilot/db";
 import { PLANS, PlanType, type CreatePolicyInput } from "@claimpilot/shared";
 import { DRIZZLE } from "../database/database.module";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import Stripe from "stripe";
 import { STRIPE } from "../stripe/stripe.module";
 import { ConfigService } from "@nestjs/config";
@@ -69,7 +69,7 @@ export class PoliciesService {
     }
 
     const plan = PLANS[policy.planType as PlanType];
-    const webOrigin = this.config.getOrThrow("WEB_ORIGIN");
+    const webOrigin = this.config.getOrThrow<string>("WEB_ORIGIN");
 
     const session = await this.stripe.checkout.sessions.create({
       mode: "payment",
@@ -94,6 +94,19 @@ export class PoliciesService {
       .where(eq(schema.policies.id, policy.id));
 
     return { url: session.url };
+  }
+
+  async list(userId: string) {
+    return this.db
+      .select({ policy: schema.policies, vehicle: schema.vehicles })
+      .from(schema.policies)
+      .innerJoin(
+        schema.vehicles,
+        eq(schema.policies.vehicleId, schema.vehicles.id),
+      )
+      .where(eq(schema.policies.userId, userId))
+      .orderBy(desc(schema.policies.coverageStart))
+      .then((rows) => rows.map((r) => ({ ...r.policy, vehicle: r.vehicle })));
   }
 
   async findOne(userId: string, policyId: string) {

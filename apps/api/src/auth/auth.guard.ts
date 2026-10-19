@@ -4,17 +4,13 @@ import {
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import { ConfigService } from "@nestjs/config";
+import type { AuthedRequest } from "./current-user";
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  //   private supabase = createClient(
-  //     process.env.SUPABASE_URL!,
-  //     process.env.SUPABASE_ANON_KEY!,
-  //   );
-
-  private supabase: SupabaseClient;
+  private supabase: ReturnType<typeof createClient>;
 
   constructor(private config: ConfigService) {
     this.supabase = createClient(
@@ -24,7 +20,7 @@ export class AuthGuard implements CanActivate {
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<AuthedRequest>();
     const authHeader = request.headers["authorization"];
 
     if (!authHeader?.startsWith("Bearer ")) {
@@ -34,6 +30,7 @@ export class AuthGuard implements CanActivate {
     const token = authHeader.slice(7); // strip "Bearer "
 
     // Ask Supabase to validate the token and return the user.
+    // Tradeoff (DECISIONS.md): a network hop per request vs local JWT verify.
     const { data, error } = await this.supabase.auth.getUser(token);
 
     if (error || !data.user) {
@@ -41,7 +38,7 @@ export class AuthGuard implements CanActivate {
     }
 
     // Attach the user so downstream handlers can read it.
-    request.user = data.user;
+    request.user = { id: data.user.id, email: data.user.email };
     return true;
   }
 }

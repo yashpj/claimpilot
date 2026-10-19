@@ -1,18 +1,18 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { eq } from "drizzle-orm";
 import Stripe from "stripe";
-import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import * as schema from "@claimpilot/db";
 import { PLANS, type PlanType } from "@claimpilot/shared";
-import { DRIZZLE } from "../database/database.module";
+import { DRIZZLE, type Db } from "../database/database.module";
+import { pgErrorCode } from "../common/pg-error";
+
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 @Injectable()
 export class WebhooksService {
   private readonly logger = new Logger(WebhooksService.name);
 
-  constructor(
-    @Inject(DRIZZLE) private readonly db: PostgresJsDatabase<typeof schema>,
-  ) {}
+  constructor(@Inject(DRIZZLE) private readonly db: Db) {}
 
   async processStripeEvent(event: Stripe.Event) {
     try {
@@ -28,8 +28,8 @@ export class WebhooksService {
         }
         // Other event types: recorded as processed, no action. Intentional.
       });
-    } catch (err: any) {
-      if (err?.code === "23505" || err?.cause?.code === "23505") {
+    } catch (err) {
+      if (pgErrorCode(err) === "23505") {
         // Postgres unique_violation
         this.logger.log({
           msg: "Duplicate webhook ignored",
@@ -41,7 +41,7 @@ export class WebhooksService {
     }
   }
 
-  private async activatePolicy(tx: any, session: Stripe.Checkout.Session) {
+  private async activatePolicy(tx: Tx, session: Stripe.Checkout.Session) {
     const policyId = session.metadata?.policyId;
     if (!policyId) {
       this.logger.error({
