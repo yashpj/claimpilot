@@ -9,6 +9,7 @@ import { DRIZZLE, type Db } from "../database/database.module";
 import { StorageService } from "../storage/storage.service";
 import { ML_CLIENT, MlClient } from "./ml/ml.client";
 import type { ClaimStateType } from "./state";
+import { NoopTracer, TRACER, type Tracer } from "../observability/tracer";
 
 @Injectable()
 export class AgentService {
@@ -22,12 +23,14 @@ export class AgentService {
     @Inject(DRIZZLE) db: Db,
     @Inject(ML_CLIENT) ml: MlClient,
     storage: StorageService,
+    @Inject(TRACER) private readonly tracer: Tracer = new NoopTracer(),
   ) {
     const deps = {
       db,
       llm,
       storage,
       ml,
+      tracer,
       triageConfig: TRIAGE_CONFIG,
       now: () => new Date(),
     };
@@ -48,14 +51,29 @@ export class AgentService {
     documents: ClaimStateType["documents"];
     traceId?: string;
   }): Promise<ClaimStateType> {
-    return this.app.invoke(
+    // One trace per customer turn; session = claim, so Langfuse shows the
+    // whole conversation as a session of traces.
+    const traceId = input.traceId ?? crypto.randomUUID();
+    this.tracer.startTrace({
+      id: traceId,
+      name: "claim-turn",
+      sessionId: input.claimId,
+      input: input.text,
+    });
+    const result = await this.app.invoke(
       {
         claimId: input.claimId,
         documents: input.documents,
         messages: [new HumanMessage(input.text)],
       },
-      this.config(input.claimId, input.traceId),
+      this.config(input.claimId, traceId),
     );
+    this.tracer.endTrace(traceId, {
+      phase: result.phase,
+      priority: result.triage?.priority,
+      costMicroUsd: result.usage.costMicroUsd,
+    });
+    return result;
   }
 
   async getState(claimId: string): Promise<ClaimStateType | null> {

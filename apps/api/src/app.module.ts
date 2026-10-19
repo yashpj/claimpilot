@@ -12,6 +12,7 @@ import { StorageModule } from "./storage/storage.module";
 import { HealthController } from "./health/health.controller";
 import { ReviewsModule } from "./reviews/reviews.module";
 import { MeController } from "./auth/me.controller";
+import { ObservabilityModule } from "./observability/observability.module";
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { MeController } from "./auth/me.controller";
     // lost, which is acceptable for notifications (the queue is the DB).
     EventEmitterModule.forRoot(),
     DatabaseModule,
+    ObservabilityModule,
     StripeModule,
     PoliciesModule,
     WebhooksModule,

@@ -19,7 +19,9 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:int": "jest --config ./test/jest-int.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint:fix": "eslint \"{src,test}/**/*.ts\" --fix"
+    "lint:fix": "eslint \"{src,test}/**/*.ts\" --fix",
+    "eval": "TS_NODE_TRANSPILE_ONLY=1 ts-node -P tsconfig.json evals/run-evals.ts",
+    "judge": "TS_NODE_TRANSPILE_ONLY=1 ts-node -P tsconfig.json evals/judge.ts"
   },
   "dependencies": {
     "@claimpilot/db": "workspace:^",
@@ -33,9 +35,12 @@
     "@nestjs/core": "^11.0.1",
     "@nestjs/event-emitter": "^3.1.0",
     "@nestjs/platform-express": "^11.0.1",
+    "@prometheus-io/client": "0.16.1",
+    "@slack/bolt": "5.1.0",
     "@supabase/supabase-js": "^2.110.1",
     "drizzle-orm": "^0.45.2",
     "exifr": "^7.1.3",
+    "langfuse": "3.39.2",
     "postgres": "^3.4.9",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",

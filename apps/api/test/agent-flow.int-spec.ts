@@ -11,7 +11,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import * as schema from "@claimpilot/db";
 import { AgentService } from "../src/agent/agent.service";
-import { ClaimsService, CLAIM_TRIAGED } from "../src/claims/claims.service";
+import { ClaimsService } from "../src/claims/claims.service";
+import { CLAIM_TRIAGED } from "../src/claims/claims.events";
 import { LocalStorageService } from "../src/storage/local-storage.service";
 import {
   FakeLlm,

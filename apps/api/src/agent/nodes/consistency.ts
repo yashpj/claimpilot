@@ -10,6 +10,40 @@ import {
 } from "../analysis/vlm";
 import { crossCheck } from "../analysis/cross-check";
 import { docCount } from "./documents";
+import type { Tracer } from "../../observability/tracer";
+
+// Tool call => span (the LLM calls are traced by the LLM decorator).
+async function traced<T>(
+  tracer: Tracer,
+  traceId: string | undefined,
+  name: string,
+  input: unknown,
+  fn: () => Promise<T>,
+) {
+  const startTime = new Date();
+  try {
+    const output = await fn();
+    tracer.span({
+      traceId,
+      name,
+      input,
+      output,
+      startTime,
+      endTime: new Date(),
+    });
+    return output;
+  } catch (err) {
+    tracer.span({
+      traceId,
+      name,
+      input,
+      startTime,
+      endTime: new Date(),
+      error: String(err),
+    });
+    throw err;
+  }
+}
 
 // Cap images per call: cost and latency grow linearly, signal doesn't.
 const MAX_PHOTOS = 4;
@@ -21,6 +55,7 @@ export function makeConsistencyNode({
   llm,
   storage,
   ml,
+  tracer,
   triageConfig,
   now,
 }: AgentDeps) {
@@ -69,11 +104,13 @@ export function makeConsistencyNode({
         ),
         images,
       }),
-      ml.detect(
-        images.map((i) => ({
-          data: Buffer.from(i.data, "base64"),
-          mimeType: i.mimeType,
-        })),
+      traced(tracer, traceIdOf(config), "ml.detect", photos.length, () =>
+        ml.detect(
+          images.map((i) => ({
+            data: Buffer.from(i.data, "base64"),
+            mimeType: i.mimeType,
+          })),
+        ),
       ),
     ]);
 

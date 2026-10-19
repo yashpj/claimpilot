@@ -10,7 +10,8 @@ import path from "node:path";
 import * as schema from "@claimpilot/db";
 import { AgentService } from "../src/agent/agent.service";
 import { ClaimsService } from "../src/claims/claims.service";
-import { ReviewsService, CLAIM_DECIDED } from "../src/reviews/reviews.service";
+import { ReviewsService } from "../src/reviews/reviews.service";
+import { CLAIM_DECIDED } from "../src/reviews/reviews.events";
 import { LocalStorageService } from "../src/storage/local-storage.service";
 import {
   FakeLlm,

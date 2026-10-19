@@ -9,13 +9,18 @@ import {
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { createHash, randomUUID } from "node:crypto";
-import exifr from "exifr";
 import * as schema from "@claimpilot/db";
 import type { UploadDocumentsInput } from "@claimpilot/shared";
 import { DRIZZLE, type Db } from "../database/database.module";
 import { AgentService } from "../agent/agent.service";
 import type { Phase } from "../agent/state";
 import { StorageService } from "../storage/storage.service";
+import {
+  CLAIM_CREATED,
+  CLAIM_TRIAGED,
+  type ClaimTriagedEvent,
+} from "./claims.events";
+import { readCaptureDate } from "./exif";
 
 type ClaimStatus = (typeof schema.claimStatus.enumValues)[number];
 
@@ -50,8 +55,7 @@ export type UploadedFile = {
   size: number;
 };
 
-export const CLAIM_TRIAGED = "claim.triaged";
-export type ClaimTriagedEvent = { claimId: string };
+export { CLAIM_TRIAGED } from "./claims.events";
 
 @Injectable()
 export class ClaimsService {
@@ -88,6 +92,7 @@ export class ClaimsService {
       eventType: "claim_created",
       payload: { policyId },
     });
+    this.events.emit(CLAIM_CREATED, { claimId: claim.id });
 
     return claim;
   }
@@ -318,11 +323,19 @@ export class ClaimsService {
       }
 
       await this.project(claimId, before?.phase ?? "intake", after);
-      return { after, beforePhase: before?.phase, replies };
+      return { after, beforeTriageRun: before?.triage?.runId, replies };
     });
 
-    if (result.beforePhase !== "review" && result.after.phase === "review") {
-      this.events.emit(CLAIM_TRIAGED, { claimId } satisfies ClaimTriagedEvent);
+    // A new triage run happened in this turn (first triage or re-analysis).
+    const triage = result.after.triage;
+    if (triage && triage.runId !== result.beforeTriageRun) {
+      {
+        this.events.emit(CLAIM_TRIAGED, {
+          claimId,
+          priority: triage.priority,
+          recommendation: triage.recommendation,
+        } satisfies ClaimTriagedEvent);
+      }
     }
     return { replies: result.replies, phase: result.after.phase };
   }
@@ -392,18 +405,5 @@ export class ClaimsService {
         },
       });
     }
-  }
-}
-
-async function readCaptureDate(buffer: Buffer): Promise<Date | null> {
-  try {
-    const exif = (await exifr.parse(buffer, [
-      "DateTimeOriginal",
-      "CreateDate",
-    ])) as { DateTimeOriginal?: Date; CreateDate?: Date } | undefined;
-    const d = exif?.DateTimeOriginal ?? exif?.CreateDate;
-    return d instanceof Date && !isNaN(d.getTime()) ? d : null;
-  } catch {
-    return null; // no / corrupt EXIF is normal (messaging apps strip it)
   }
 }

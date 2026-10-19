@@ -3,6 +3,7 @@ import type { Db } from "../database/database.module";
 import type { LlmProvider } from "../llm/llm.interface";
 import type { StorageService } from "../storage/storage.service";
 import type { MlClient } from "./ml/ml.client";
+import type { Tracer } from "../observability/tracer";
 
 // Everything a node needs, passed in. Nodes never `new` a client or read
 // process.env, which is what lets the eval suite run the SAME node code
@@ -12,6 +13,7 @@ export type AgentDeps = {
   llm: LlmProvider;
   storage: StorageService;
   ml: MlClient;
+  tracer: Tracer;
   triageConfig: TriageConfig;
   now: () => Date; // injectable clock: relative dates ("yesterday") + tests
 };

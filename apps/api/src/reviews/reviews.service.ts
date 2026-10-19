@@ -12,6 +12,7 @@ import type { Decision, Recommendation } from "@claimpilot/shared";
 import { DRIZZLE, type Db } from "../database/database.module";
 import { AgentService } from "../agent/agent.service";
 import { ClaimsService } from "../claims/claims.service";
+import { CLAIM_DECIDED, type ClaimDecidedEvent } from "./reviews.events";
 
 type ClaimStatus = (typeof schema.claimStatus.enumValues)[number];
 
@@ -31,12 +32,7 @@ const AGREES: Record<Decision, Recommendation> = {
 
 const DECIDABLE: ClaimStatus[] = ["pending_review", "more_info_requested"];
 
-export const CLAIM_DECIDED = "claim.decided";
-export type ClaimDecidedEvent = {
-  claimId: string;
-  decision: Decision;
-  overturned: boolean;
-};
+export { CLAIM_DECIDED };
 
 export type AssessmentOutput = {
   priority: "priority" | "standard";
