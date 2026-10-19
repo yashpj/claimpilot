@@ -21,19 +21,19 @@ It never auto-approves or auto-denies. Full spec: `PROJECT_SPEC_insurance.md` (o
 ## Non-negotiables
 - `claim_events` is append-only (a DB trigger blocks UPDATE and DELETE).
 - Zod on every API input and every LLM output.
-- Triage rules are data (`triage.config.ts`), not prose in a prompt.
+- Triage rules are data (`packages/shared/src/triage.ts`), not prose in a prompt.
 - Cost (tokens → micro-USD) and latency are recorded per assessment.
-- Evals run in CI. A drop below `evals/baseline.json` fails the build.
+- Evals run in CI. A drop below `apps/api/evals/baseline.json` fails the build.
 
 ## Components
 | Path | What |
 |---|---|
 | `apps/web` | Vite + React SPA, React Query, polling chat, `/admin` |
 | `apps/api` | NestJS: Policies, Claims, Agent, Reviews, Slack, Metrics |
-| `apps/ml-service` | FastAPI + YOLOv8 damage detection |
+| `apps/ml-service` | FastAPI + YOLO damage detection (YOLO11n, see DECISIONS) |
 | `packages/db` | Drizzle schema + SQL migrations |
 | `packages/shared` | Plans, Zod schemas, triage config |
-| `evals/` | Golden set, eval runner, LLM-as-judge |
+| `apps/api/evals/` | Golden set, eval runner (record/replay), LLM-as-judge |
 | `infra/` | Dockerfiles, raw k8s, Helm chart, monitoring, k6 |
 
 ## Metrics
