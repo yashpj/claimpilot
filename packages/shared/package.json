@@ -13,5 +13,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.build.esm.json"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
   }
 }
