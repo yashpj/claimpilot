@@ -1,61 +1,110 @@
-import { z } from "zod";
+import { randomUUID } from "node:crypto";
+import type { RunnableConfig } from "@langchain/core/runnables";
 import type { AgentDeps } from "../deps";
-import type { ClaimStateType } from "../state";
+import type { Analysis, ClaimStateType, ClaimStateUpdate } from "../state";
+import { traceIdOf, usageOf } from "../usage";
+import {
+  CONSISTENCY_SYSTEM,
+  consistencyPrompt,
+  vlmVerdictSchema,
+} from "../analysis/vlm";
+import { crossCheck } from "../analysis/cross-check";
+import { docCount } from "./documents";
 
-// The structured verdict we demand from the VLM.
-const consistencySchema = z.object({
-  observedDamage: z.string(), // what the model sees in the photos
-  matchesDescription: z.boolean(), // does it fit the customer's story
-  confidence: z.number().min(0).max(1),
-  discrepancies: z.array(z.string()), // specific mismatches, if any
-});
+// Cap images per call: cost and latency grow linearly, signal doesn't.
+const MAX_PHOTOS = 4;
 
-export function makeConsistencyNode({ llm, storage }: AgentDeps) {
-  return async function consistencyNode(state: ClaimStateType) {
-    const photos = state.documents.damagePhotos;
+// The core node (spec §4.3). Calls the VLM and the ml-service IN PARALLEL,
+// then cross-checks them. Any failure => analysis "incomplete", never a
+// thrown error: the claim still reaches a human, with a flag saying why.
+export function makeConsistencyNode({
+  llm,
+  storage,
+  ml,
+  triageConfig,
+  now,
+}: AgentDeps) {
+  return async function consistencyNode(
+    state: ClaimStateType,
+    config?: RunnableConfig,
+  ): Promise<ClaimStateUpdate> {
+    const base: Analysis = {
+      runId: randomUUID(),
+      startedAt: now().getTime(),
+      status: "incomplete",
+      errors: [],
+      vlm: null,
+      ml: null,
+      crossCheck: null,
+      docCount: docCount(state.documents),
+      vlmModel: null,
+    };
 
-    // No photos → nothing to analyze. Skip, let triage/human handle it.
+    const photos = state.documents.damagePhotos.slice(0, MAX_PHOTOS);
     if (!photos.length) {
-      return {
-        analysis: { status: "skipped" as const },
-        phase: "triage" as const,
-      };
+      return { analysis: { ...base, errors: ["no damage photos"] } };
     }
 
+    let images;
     try {
-      // Fetch image bytes from storage.
-      const images = await Promise.all(photos.map((p) => storage.getImage(p)));
-
-      const system =
-        "You are an auto-damage assessor. You will see damage photos and an " +
-        "incident description. Assess whether the visible damage is consistent " +
-        "with the description. Use exactly these JSON keys: observedDamage " +
-        "(string), matchesDescription (boolean), confidence (number 0-1), " +
-        "discrepancies (array of strings).";
-      const prompt = `Incident description: "${state.incident.description}". Assess the attached photos.`;
-
-      const raw = await llm.analyzeImages<unknown>(prompt, images, system);
-
-      // Untrusted output — validate.
-      const parsed = consistencySchema.safeParse(raw);
-      if (!parsed.success) {
-        return {
-          analysis: { status: "failed" as const },
-          phase: "triage" as const,
-        };
-      }
-
+      images = await Promise.all(photos.map((p) => storage.getImage(p)));
+    } catch (err) {
       return {
-        analysis: { ...parsed.data, status: "complete" as const },
-        phase: "triage" as const,
-      };
-    } catch {
-      // VLM/storage failure (429, download error) — DON'T block the claim.
-      // Mark failed, route to human. This is the 4.1 rule made real.
-      return {
-        analysis: { status: "failed" as const },
-        phase: "triage" as const,
+        analysis: {
+          ...base,
+          errors: [`storage: ${String(err).slice(0, 200)}`],
+        },
       };
     }
+
+    // allSettled, not all: one failing must not discard the other's result.
+    const [vlmRes, mlRes] = await Promise.allSettled([
+      llm.analyzeImages({
+        name: "consistency.vlm",
+        traceId: traceIdOf(config),
+        system: CONSISTENCY_SYSTEM,
+        prompt: consistencyPrompt(
+          state.incident.description ?? "",
+          state.additionalInfo,
+        ),
+        images,
+      }),
+      ml.detect(
+        images.map((i) => ({
+          data: Buffer.from(i.data, "base64"),
+          mimeType: i.mimeType,
+        })),
+      ),
+    ]);
+
+    const analysis: Analysis = { ...base };
+    let usage;
+
+    if (vlmRes.status === "fulfilled") {
+      usage = usageOf(vlmRes.value);
+      analysis.vlmModel = vlmRes.value.model;
+      const parsed = vlmVerdictSchema.safeParse(vlmRes.value.value);
+      if (parsed.success) analysis.vlm = parsed.data;
+      else analysis.errors.push("vlm: output failed validation");
+    } else {
+      analysis.errors.push(`vlm: ${String(vlmRes.reason).slice(0, 200)}`);
+    }
+
+    if (mlRes.status === "fulfilled") {
+      analysis.ml = mlRes.value;
+    } else {
+      analysis.errors.push(`ml: ${String(mlRes.reason).slice(0, 200)}`);
+    }
+
+    if (analysis.vlm && analysis.ml) {
+      analysis.crossCheck = crossCheck(
+        analysis.vlm,
+        analysis.ml.detections,
+        triageConfig.mlMinConfidence,
+      );
+      analysis.status = "complete";
+    }
+
+    return { analysis, ...(usage ? { usage } : {}) };
   };
 }

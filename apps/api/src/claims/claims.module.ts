@@ -5,5 +5,6 @@ import { ClaimsService } from "./claims.service";
 @Module({
   controllers: [ClaimsController],
   providers: [ClaimsService],
+  exports: [ClaimsService],
 })
 export class ClaimsModule {}

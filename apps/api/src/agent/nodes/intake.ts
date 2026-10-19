@@ -1,111 +1,196 @@
 import { z } from "zod";
 import { AIMessage } from "@langchain/core/messages";
-import type { LlmProvider } from "../../llm/llm.interface";
-import type { ClaimStateType } from "../state";
-import type { AgentDeps } from "../deps";
-import * as schema from "@claimpilot/db";
+import type { RunnableConfig } from "@langchain/core/runnables";
 import { eq } from "drizzle-orm";
+import * as schema from "@claimpilot/db";
+import type { AgentDeps } from "../deps";
+import type { ClaimStateType, ClaimStateUpdate } from "../state";
+import { traceIdOf, usageOf } from "../usage";
+import { AGENT_PERSONA, transcriptOf } from "./common";
 
 // What we try to extract from the conversation so far.
 const extractionSchema = z.object({
-  date: z.string().nullable(), // ISO date or null if not yet given
-  location: z.string().nullable(),
-  description: z.string().nullable(),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .catch(null),
+  location: z.string().min(1).nullable().catch(null),
+  description: z.string().min(1).nullable().catch(null),
+  // Dollars from the model (people talk in dollars); stored as cents.
+  claimed_amount: z.number().nonnegative().nullable().catch(null),
 });
 
-export function makeIntakeNode({ db, llm }: AgentDeps) {
-  return async function intakeNode(state: ClaimStateType) {
-    const transcript = state.messages
-      .map((m) => `${m.getType()}: ${m.content}`)
-      .join("\n");
+const FIELDS = [
+  "date",
+  "location",
+  "description",
+  "claimedAmountCents",
+] as const;
+const FIELD_LABELS: Record<(typeof FIELDS)[number], string> = {
+  date: "the date of the incident",
+  location: "where it happened",
+  description: "what happened and which parts of the car were damaged",
+  claimedAmountCents: "a rough estimate of the repair cost",
+};
+
+export function makeIntakeNode({ db, llm, triageConfig, now }: AgentDeps) {
+  return async function intakeNode(
+    state: ClaimStateType,
+    config?: RunnableConfig,
+  ): Promise<ClaimStateUpdate> {
+    const traceId = traceIdOf(config);
+    const today = now().toISOString().slice(0, 10);
 
     const system =
       "You are an insurance intake assistant. From the conversation, extract " +
       "these exact JSON fields: " +
-      '"date" (the incident date in ISO format YYYY-MM-DD), ' +
+      '"date" (incident date, format YYYY-MM-DD), ' +
       '"location" (where it happened), ' +
-      '"description" (what happened). ' +
-      "Use null for any field not yet provided. " +
-      "Use exactly these key names: date, location, description.";
-    // 1. LLM extracts structured data from free-form chat.
-    const raw = await llm.extractJson<unknown>(transcript, system);
+      '"description" (what happened, including damaged parts), ' +
+      '"claimed_amount" (estimated repair cost in dollars, number). ' +
+      `Today is ${today}; resolve relative dates like "yesterday". ` +
+      "Use null for any field not yet provided. Never invent values.";
 
-    // 2. NEVER trust the shape — validate.
-    const parsed = extractionSchema.safeParse(raw);
-    const extracted = parsed.success
-      ? parsed.data
-      : { date: null, location: null, description: null };
+    // 1. LLM extracts structured data from free-form chat.
+    // If it fails (429, timeout, bad JSON) we degrade to "nothing extracted"
+    // and ask again. The customer is never shown a 500.
+    let extracted: z.infer<typeof extractionSchema> = {
+      date: null,
+      location: null,
+      description: null,
+      claimed_amount: null,
+    };
+    const results = [];
+    try {
+      const res = await llm.extractJson({
+        name: "intake.extract",
+        traceId,
+        system,
+        prompt: transcriptOf(state.messages),
+      });
+      results.push(res);
+      // 2. NEVER trust the shape — validate. `.catch(null)` per field means one
+      // bad field (e.g. "next Tuesday") doesn't throw away the good ones.
+      const parsed = extractionSchema.safeParse(res.value);
+      if (parsed.success) extracted = parsed.data;
+    } catch {
+      /* fall through with nothing extracted */
+    }
 
     // 3. Merge non-null fields into state.incident.
-    const incidentUpdate: Record<string, string> = {};
-    if (extracted.date) incidentUpdate.date = extracted.date;
-    if (extracted.location) incidentUpdate.location = extracted.location;
-    if (extracted.description)
-      incidentUpdate.description = extracted.description;
+    const update: ClaimStateType["incident"] = {};
+    if (extracted.date) update.date = extracted.date;
+    if (extracted.location) update.location = extracted.location;
+    if (extracted.description) update.description = extracted.description;
+    if (extracted.claimed_amount !== null) {
+      update.claimedAmountCents = Math.round(extracted.claimed_amount * 100);
+    }
 
-    const merged = { ...state.incident, ...incidentUpdate };
-    const complete = merged.date && merged.location && merged.description;
+    const merged = { ...state.incident, ...update };
+    const missing = FIELDS.filter((f) => merged[f] === undefined);
+    const progressed = FIELDS.some(
+      (f) => state.incident[f] === undefined && merged[f] !== undefined,
+    );
 
-    // NEW: once we have a date, validate coverage before advancing.
+    // 4. Once we have a date, validate coverage before advancing (spec §4).
     if (merged.date) {
-      const [claim] = await db
-        .select()
+      const [row] = await db
+        .select({ policy: schema.policies })
         .from(schema.claims)
+        .innerJoin(
+          schema.policies,
+          eq(schema.claims.policyId, schema.policies.id),
+        )
         .where(eq(schema.claims.id, state.claimId));
-      const [policy] = await db
-        .select()
-        .from(schema.policies)
-        .where(eq(schema.policies.id, claim.policyId));
 
-      const incidentDate = new Date(merged.date);
-      const active = policy.status === "active";
+      const policy = row?.policy;
+      const incidentDate = new Date(`${merged.date}T12:00:00Z`);
+      const active = policy?.status === "active";
       const inWindow =
-        policy.coverageStart &&
-        policy.coverageEnd &&
-        incidentDate >= policy.coverageStart &&
+        !!policy?.coverageStart &&
+        !!policy.coverageEnd &&
+        incidentDate >= startOfDay(policy.coverageStart) &&
         incidentDate <= policy.coverageEnd;
 
       if (!active || !inWindow) {
         return {
-          incident: incidentUpdate,
-          phase: "done" as const, // terminate politely
+          incident: update,
+          phase: "done", // terminate politely
+          closedReason: !active
+            ? "policy_not_active"
+            : "outside_coverage_window",
+          usage: usageOf(...results),
           messages: [
             new AIMessage(
               !active
                 ? "This policy isn't active, so I can't file a claim against it."
-                : "The incident date falls outside your coverage period, so this claim can't be filed.",
+                : "The incident date falls outside your coverage period, so this claim can't be filed. If the date is wrong, please start a new claim with the correct date.",
             ),
           ],
         };
       }
     }
 
-    // 4. Decide the reply.
-    if (complete) {
+    // 5. Complete => hand over to documents (same run, see graph.ts).
+    if (missing.length === 0) {
       return {
-        incident: incidentUpdate,
-        phase: "documents" as const,
+        incident: update,
+        phase: "documents",
+        noProgressTurns: 0,
+        usage: usageOf(...results),
+        messages: [new AIMessage("Thanks — I have the incident details.")],
+      };
+    }
+
+    // 6. Stall detection: N turns in a row with nothing new => human takes over.
+    const noProgressTurns = progressed ? 0 : state.noProgressTurns + 1;
+    if (noProgressTurns >= triageConfig.maxNoProgressTurns) {
+      return {
+        incident: update,
+        phase: "analysis",
+        flags: ["conversation_stalled"],
+        noProgressTurns,
+        usage: usageOf(...results),
         messages: [
           new AIMessage(
-            "Thanks — I have the incident details. Now I'll need some documents.",
+            "I'm having trouble collecting the details, so I'm passing your claim to a member of our team who will follow up with you here.",
           ),
         ],
       };
     }
 
-    // Ask for whatever's still missing.
-    const missing = ["date", "location", "description"].filter(
-      (f) => !merged[f as keyof typeof merged],
-    );
-    const reply = await llm.complete(
-      `Ask the user politely for these missing details: ${missing.join(", ")}. ` +
-        `Keep it to one short message.`,
-    );
+    // 7. Ask for whatever's still missing.
+    const ask = missing.map((f) => FIELD_LABELS[f]).join(", ");
+    let reply = `Could you tell me ${ask}?`;
+    try {
+      const res = await llm.complete({
+        name: "intake.ask",
+        traceId,
+        system: AGENT_PERSONA,
+        prompt:
+          `Conversation so far:\n${transcriptOf(state.messages)}\n\n` +
+          `Write one short, friendly message asking the customer for: ${ask}. ` +
+          `If they asked a question, answer briefly first only if it is about the claims process.`,
+      });
+      results.push(res);
+      if (res.value.trim()) reply = res.value.trim();
+    } catch {
+      /* deterministic fallback above */
+    }
 
     return {
-      incident: incidentUpdate,
-      phase: "intake" as const,
+      incident: update,
+      phase: "intake",
+      noProgressTurns,
+      usage: usageOf(...results),
       messages: [new AIMessage(reply)],
     };
   };
+}
+
+function startOfDay(d: Date) {
+  const x = new Date(d);
+  x.setUTCHours(0, 0, 0, 0);
+  return x;
 }

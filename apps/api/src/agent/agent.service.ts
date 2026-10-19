@@ -1,33 +1,79 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import type { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
+import { TRIAGE_CONFIG, type Decision } from "@claimpilot/shared";
 import { buildClaimGraph } from "./graph";
 import { CHECKPOINTER } from "./agent.tokens";
-import * as llmInterface from "src/llm/llm.interface";
-import { DRIZZLE } from "src/database/database.module";
-import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import * as schema from "@claimpilot/db";
-import { ClaimStateType } from "./state";
-import { StorageService } from "src/storage/storage.service";
+import { LLM, type LlmProvider } from "../llm/llm.interface";
+import { DRIZZLE, type Db } from "../database/database.module";
+import { StorageService } from "../storage/storage.service";
+import { ML_CLIENT, MlClient } from "./ml/ml.client";
+import type { ClaimStateType } from "./state";
+
 @Injectable()
 export class AgentService {
-  private readonly app;
-
-  // constructor(@Inject(CHECKPOINTER) checkpointer: PostgresSaver) {
-  //   // compile() turns the graph definition into a runnable, wired to persistence.
-  //   this.app = buildClaimGraph().compile({ checkpointer });
-  // }
+  private readonly app: ReturnType<
+    ReturnType<typeof buildClaimGraph>["compile"]
+  >;
 
   constructor(
     @Inject(CHECKPOINTER) checkpointer: PostgresSaver,
-    @Inject(llmInterface.LLM) llm: llmInterface.LlmProvider,
-    @Inject(DRIZZLE) db: PostgresJsDatabase<typeof schema>,
-    private readonly storage: StorageService, // NEW
+    @Inject(LLM) llm: LlmProvider,
+    @Inject(DRIZZLE) db: Db,
+    @Inject(ML_CLIENT) ml: MlClient,
+    storage: StorageService,
   ) {
-    const deps = { db, llm, storage };
+    const deps = {
+      db,
+      llm,
+      storage,
+      ml,
+      triageConfig: TRIAGE_CONFIG,
+      now: () => new Date(),
+    };
+    // compile() turns the graph definition into a runnable, wired to persistence.
     this.app = buildClaimGraph(deps).compile({ checkpointer });
   }
 
-  async invoke(input: Partial<ClaimStateType>, config: any) {
-    return this.app.invoke(input, config);
+  private config(claimId: string, traceId?: string) {
+    // thread_id = conversation identity = checkpoint lookup key.
+    return { configurable: { thread_id: claimId, traceId } };
+  }
+
+  // One customer turn: resumes from the checkpoint, runs until the graph
+  // needs the customer again (END), checkpoints after every node.
+  async runTurn(input: {
+    claimId: string;
+    text: string;
+    documents: ClaimStateType["documents"];
+    traceId?: string;
+  }): Promise<ClaimStateType> {
+    return this.app.invoke(
+      {
+        claimId: input.claimId,
+        documents: input.documents,
+        messages: [new HumanMessage(input.text)],
+      },
+      this.config(input.claimId, input.traceId),
+    );
+  }
+
+  async getState(claimId: string): Promise<ClaimStateType | null> {
+    const snapshot = await this.app.getState(this.config(claimId));
+    // A thread with no checkpoint yet has empty values.
+    return snapshot.values && "phase" in snapshot.values
+      ? (snapshot.values as ClaimStateType)
+      : null;
+  }
+
+  // Human decisions happen OUTSIDE the graph (spec §4.5) and re-enter as a
+  // state update, so the next customer message is routed correctly and the
+  // agent's transcript contains the decision.
+  async applyDecision(claimId: string, decision: Decision, message: string) {
+    await this.app.updateState(this.config(claimId), {
+      phase: decision === "more_info" ? "more_info" : "done",
+      noProgressTurns: 0,
+      messages: [new AIMessage(message)],
+    });
   }
 }
