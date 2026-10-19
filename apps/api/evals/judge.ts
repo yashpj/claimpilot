@@ -109,6 +109,7 @@ async function main() {
     const cfg = { configurable: { thread_id: claim.id } };
     let state;
     for (const t of p.turns) {
+      await pace();
       state = await graph.invoke(
         {
           claimId: claim.id,
@@ -121,6 +122,7 @@ async function main() {
     }
     if (!state) continue;
     const transcript = transcriptOf(state.messages);
+    await pace();
     const res = await llm.extractJson({
       name: "judge",
       system: JUDGE_SYSTEM,
@@ -154,6 +156,9 @@ async function main() {
   }
   console.log("PASS");
 }
+
+// Free tier: 15 requests/min per model.
+const pace = () => new Promise((r) => setTimeout(r, Number(process.env.JUDGE_DELAY_MS ?? 4500)));
 
 async function activePolicy(db: ReturnType<typeof drizzle<typeof schema>>) {
   const userId = randomUUID();
