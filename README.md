@@ -139,9 +139,13 @@ Kubernetes (k3d + Helm): `infra/k8s/k3d-up.sh`, `infra/k8s/create-secrets.sh`, `
 | Prompts on real models | live Gemini runs: intake conversations, 22-case eval, LLM-as-judge (4/4 pass) |
 | ml-service | pytest + live inference on the golden photos |
 | Admin + chat UI | exercised in a browser against the real API (auth stubbed locally) |
-| API container | built and smoke-tested (ready, metrics port isolation, non-root) |
-| Helm chart / raw manifests | `helm lint` + `kubeconform` (k8s 1.31). **Not yet deployed to a live k3d cluster** |
-| ml-service image, web image, CI workflow, Slack against a real workspace, Langfuse cloud | written, **not yet run** |
+| All three images | built; api smoke-tested (ready, metrics port isolation, non-root) |
+| Helm chart on k3d (k8s 1.35) | deployed: ingress `/` + `/api`, metrics not public, migrations hook, rolling upgrade |
+| DB outage at boot | Postgres stopped while an API pod booted: readiness 503 / liveness 200, retried, 0 restarts |
+| Rollback drill | broken image → rollout stalled, `helm rollback`; **99/99 requests 200 during the drill** |
+| HPA | k6, 200 VUs: 2 → 6 pods in ~45s, scaled down after the 2-min window; **986,884 requests, 0 failed, p95 19 ms** |
+| Monitoring | kube-prometheus-stack: 3 targets up, 4 alert rules loaded, Grafana dashboard provisioned |
+| CI workflow, Slack against a real workspace, Langfuse cloud, Supabase storage driver in k8s | written, **not yet run** |
 
 ---
 

@@ -95,8 +95,20 @@ One line per decision: what we chose, what we rejected, why. Newest phases last.
 - **In-process EventEmitter for "claim triaged/decided".** Decouples Slack/metrics from claims. Not durable: a lost Slack ping is acceptable because the admin queue (the DB) is the source of truth. Durable queues are sprint 2.
 - **`pnpm@9.0.0` stays pinned.** pnpm honours `packageManager` inside the repo, so the lockfile really is pnpm 9's.
 
+## First live k3d deploy (2026-10-23) — what only a real cluster caught
+
+- **Image `USER` must be numeric.** `runAsNonRoot` can't verify a user *name*, so the kubelet refused to start the api container (`USER node` → `USER 1000`). Lint and schema validation both passed.
+- **Migrations: `post-install,pre-upgrade`, not `pre-install`.** A pre-install hook runs before *any* chart resource exists, including the in-chart Postgres.
+- **Retry `PostgresSaver.setup()` at boot (~45s).** API pods started before Postgres; one attempt meant CrashLoopBackOff with growing restart delays. Verified: DB down during boot → 0 restarts.
+- **Secrets script skips config keys and keeps the Postgres password.** The Secret loads after the ConfigMap, so a laptop `WEB_ORIGIN` silently won. And Postgres reads its password only when the volume is first created.
+- **Local registry, not `k3d image import`.** Import copies every image into every node: 2.5 GB ml image × 3 nodes × 2 SHAs filled Docker's disk and hung the daemon.
+- **One ServiceMonitor per service.** Endpoints apply to every selected service; the shared one scraped api:3000 and nginx as permanently-down targets.
+- **API CPU request (100m) is below real load use (~350m), so the HPA saturated at 6.** Not retuned: k6 hits `/health/ready`, and real claim traffic mostly waits on Gemini (I/O, not CPU). Size requests from production metrics, not a synthetic test.
+- **Local k3d runs `STORAGE_DRIVER=local`** (no `SUPABASE_SERVICE_ROLE_KEY` yet). Uploads land in one pod's `/tmp`, so with 2+ replicas a photo may 404 from another pod. Use Supabase storage for anything beyond a demo.
+
 ## Daily log
 
 - Days 1–3: monorepo, schema, auth, deploy; Stripe + idempotent webhook.
 - Days 4–6: LangGraph intake + documents, chat UI, React Query.
 - 2026-10-19: Phases 4–12 on `feat/phase4-to-12`: analysis/fraud/triage graph, reviews + admin UI, ml-service, Langfuse/metrics, golden set + eval gate + judge, CI, Dockerfiles, Helm/k8s/monitoring, Slack bot, seed script. Found and fixed: unwired graph (node/channel name clash), a missing zod dependency, flash's 20/day quota (switched vision to flash-lite on eval evidence), and a wrong golden label.
+- 2026-10-23: first live k3d deploy, rollback drill, DB-outage test, k6/HPA run and kube-prometheus-stack. Six bugs found and fixed (section above).

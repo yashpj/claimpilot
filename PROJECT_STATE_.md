@@ -164,8 +164,8 @@ Full detail: `DECISIONS.md` (every choice + why). Summary:
 
 ### Not yet verified (do next)
 - [ ] Run CI on GitHub (push branch, open PR) — workflow never executed.
-- [ ] k3d live deploy + rollback drill + k6/HPA demo + kube-prometheus-stack (blocked 2026-10-19: Mac disk was 100% full).
-- [ ] Build ml-service + web images locally (ml image ~2 GB; free disk first).
+- [x] k3d live deploy + rollback drill + k6/HPA demo + kube-prometheus-stack (2026-10-23; results in README "Verification status").
+- [x] Build ml-service + web images locally (ml image 2.45 GB uncompressed, CPU torch).
 - [ ] Slack app in a real workspace (bot token, signing secret, `SLACK_REVIEWER_MAP`, interactivity URL → `/slack/events`).
 - [ ] Langfuse cloud keys → see traces.
 - [ ] Supabase: `SUPABASE_SERVICE_ROLE_KEY` + bucket `claim-documents` for STORAGE_DRIVER=supabase; run migrations 0001/0002 on Supabase (session pooler).
@@ -181,6 +181,8 @@ Full detail: `DECISIONS.md` (every choice + why). Summary:
 - **`@nestjs/event-emitter` v12 is ESM-only** → breaks Jest/CJS; pinned v3.
 - **Disk full ⇒ Docker hangs** (I/O errors, daemon unresponsive). A torch image build is ~2–3 GB. Check `df -h` before building ML images.
 - **Evals found a wrong golden label** (left vs right headlight) — fix data, not the model.
+- **`k3d image import` copies images into every node** → use the k3d registry (`infra/k8s/k3d-up.sh`). Docker.raw grows and doesn't shrink quickly.
+- **Local cluster:** `infra/k8s/k3d-up.sh` → `create-secrets.sh` → `deploy.sh --set api.config.STORAGE_DRIVER=local --set api.config.LOCAL_STORAGE_DIR=/tmp/uploads`. App http://claimpilot.localhost:8081, Grafana http://grafana.localhost:8081 (admin / claimpilot-local). Tear down: `k3d cluster delete claimpilot`.
 
 ## Concepts covered (don't re-teach unless asked)
 
