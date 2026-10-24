@@ -1,23 +1,41 @@
 {{- if .Values.monitoring.enabled }}
 # Prometheus Operator discovers scrape targets via ServiceMonitor objects
 # (instead of hand-edited prometheus.yml).
+# One ServiceMonitor per service: endpoints apply to EVERY selected
+# service, so a shared one scraped api:3000 and web:8080 too (404 / HTML).
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: claimpilot
+  name: claimpilot-api
   labels:
     release: {{ .Values.monitoring.release }}
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/part-of: claimpilot
+      app.kubernetes.io/name: api
+      app.kubernetes.io/instance: {{ .Release.Name }}
   endpoints:
-    - port: metrics     # api:9464
+    - port: metrics     # internal-only :9464
       path: /metrics
       interval: 15s
-    - port: http        # ml-service:8000/metrics (api/web have no /metrics on http)
+{{- if .Values.mlService.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: claimpilot-ml-service
+  labels:
+    release: {{ .Values.monitoring.release }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ml-service
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  endpoints:
+    - port: http
       path: /metrics
       interval: 30s
+{{- end }}
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule

@@ -18,7 +18,7 @@ docker tag "$REG/claimpilot-web:$GOOD" "$REG/claimpilot-web:$BAD"
 docker tag "$REG/claimpilot-ml-service:$GOOD" "$REG/claimpilot-ml-service:$BAD"
 for app in api web ml-service; do docker push -q "$REG/claimpilot-$app:$BAD"; done
 
-echo ">>> deploying broken release $BAD (migrations hook runs first and passes)"
+echo ">>> deploying broken release $BAD (migrations off: the drill is about the rollout)"
 helm upgrade claimpilot infra/helm/claimpilot -n "$NS" --reuse-values \
   --set image.tag="$BAD" --set migrations.enabled=false --timeout 90s --wait || echo ">>> upgrade failed as expected"
 
