@@ -1,16 +1,19 @@
 {{- if .Values.migrations.enabled }}
 {{- $ctx := dict "root" . "name" "api" -}}
-# Migrations run BEFORE the new api pods roll out (pre-upgrade hook), from
+# Upgrades: migrations run BEFORE the new api pods roll out (pre-upgrade), from
 # the same image (= same SHA = same migrations). If they fail, the upgrade
 # stops and the old version keeps serving. Rule that makes this safe:
 # migrations must be backward compatible with the previous app version
 # (expand -> deploy -> contract), because old pods still run during rollout.
+# First install: post-install, not pre-install. A pre-install hook runs before
+# ANY chart resource exists, including the in-chart Postgres, so it would wait
+# forever. With --wait, post-install runs once Postgres is Ready.
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: migrate-{{ .Values.image.tag | trunc 12 }}
   annotations:
-    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook: post-install,pre-upgrade
     helm.sh/hook-weight: "0"
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 spec:

@@ -32,7 +32,9 @@ WORKDIR /app
 COPY --from=build /out/node_modules node_modules
 COPY --from=build /out/package.json package.json
 COPY --from=build /repo/apps/api/dist dist
-USER node
+# Numeric UID (= the image's "node" user): k8s runAsNonRoot can only verify
+# a number, and refuses to start a container whose USER is a name.
+USER 1000
 EXPOSE 3000
 # exec form: node is PID 1 and receives SIGTERM directly (graceful shutdown).
 CMD ["node", "dist/main.js"]

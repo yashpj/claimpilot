@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Deploy a specific commit. Locally: build images, import them into k3d.
 # In a real env: images come from GHCR (pushed by CI) and only helm runs.
+# Extra args go to helm, e.g.  infra/k8s/deploy.sh --set api.config.STORAGE_DRIVER=local
 set -euo pipefail
 NS=${NS:-claimpilot}
 CLUSTER=${CLUSTER:-claimpilot}
@@ -18,5 +19,5 @@ fi
 helm upgrade --install claimpilot infra/helm/claimpilot -n "$NS" \
   --set image.tag="$TAG" \
   --set monitoring.enabled="${MONITORING:-false}" \
-  --wait --timeout 10m
+  --wait --timeout 10m "$@"
 kubectl -n "$NS" get pods,hpa,pdb
