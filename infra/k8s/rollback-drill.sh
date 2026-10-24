@@ -9,13 +9,14 @@ NS=${NS:-claimpilot}
 CLUSTER=${CLUSTER:-claimpilot}
 GOOD=$(helm -n "$NS" get values claimpilot -o json | python3 -c 'import json,sys; print(json.load(sys.stdin)["image"]["tag"])')
 BAD="broken-$(date +%s)"
-REG=ghcr.io/yashpj
+REG=${PUSH_REG:-localhost:5050}
 
 docker build -f infra/k8s/broken/Dockerfile --build-arg BASE="$REG/claimpilot-api:$GOOD" -t "$REG/claimpilot-api:$BAD" .
-# web/ml keep the good image: retag so the chart's single image.tag resolves.
+# web/ml keep the good image: retag so the chart's single image.tag resolves
+# (the registry stores the layers once; a retag costs nothing).
 docker tag "$REG/claimpilot-web:$GOOD" "$REG/claimpilot-web:$BAD"
 docker tag "$REG/claimpilot-ml-service:$GOOD" "$REG/claimpilot-ml-service:$BAD"
-k3d image import -c "$CLUSTER" "$REG/claimpilot-api:$BAD" "$REG/claimpilot-web:$BAD" "$REG/claimpilot-ml-service:$BAD"
+for app in api web ml-service; do docker push -q "$REG/claimpilot-$app:$BAD"; done
 
 echo ">>> deploying broken release $BAD (migrations hook runs first and passes)"
 helm upgrade claimpilot infra/helm/claimpilot -n "$NS" --reuse-values \
