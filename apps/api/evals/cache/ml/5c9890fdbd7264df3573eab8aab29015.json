@@ -1,0 +1,17 @@
+{
+ "modelVersion": "yolov11n-car-damage@hf:vineetsarpal",
+ "detections": [
+  [
+   {
+    "class": "bonnet-dent",
+    "confidence": 0.168,
+    "bbox": [
+     112.6,
+     807.5,
+     247.5,
+     869.2
+    ]
+   }
+  ]
+ ]
+}

@@ -1,0 +1,7 @@
+# Day 17 "learn it raw" manifests: the API alone, no Helm. Every field the
+# Helm chart templates exists here in plain form first.
+#   kubectl apply -f infra/k8s/raw/
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: claimpilot-raw

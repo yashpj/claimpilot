@@ -1,0 +1,47 @@
+{{- if .Values.ingress.enabled }}
+# Traefik (bundled with k3s/k3d). One host:
+#   /      -> web (static SPA)
+#   /api/* -> api, with /api stripped (the SPA is built with VITE_API_URL=/api)
+# Same origin for browser and API => no CORS in the cluster.
+# Only api:3000 is routed; metrics (:9464) is never exposed.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-api-prefix
+spec:
+  stripPrefix:
+    prefixes: ["/api"]
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: claimpilot
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: {{ .Release.Namespace }}-strip-api-prefix@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service: { name: api, port: { name: http } }
+---
+# Separate Ingress for the SPA so the strip middleware applies only to /api.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: claimpilot-web
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: web, port: { name: http } }
+{{- end }}

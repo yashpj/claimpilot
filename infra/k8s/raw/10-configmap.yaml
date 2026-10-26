@@ -1,0 +1,12 @@
+# Non-secret config. Secrets live in a Secret (see 20-secret.example.yaml).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+  namespace: claimpilot-raw
+data:
+  STORAGE_DRIVER: "supabase"
+  GEMINI_MODEL: "gemini-flash-lite-latest"
+  GEMINI_VISION_MODEL: "gemini-flash-lite-latest"
+  ML_SERVICE_URL: "http://ml-service:8000"
+  WEB_ORIGIN: "http://claimpilot.localhost"

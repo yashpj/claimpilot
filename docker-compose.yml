@@ -1,3 +1,5 @@
+# Local dev. Default: just Postgres (run api/web with pnpm for hot reload).
+# Whole stack in containers:  docker compose --profile full up --build
 services:
   postgres:
     image: postgres:16-alpine
@@ -8,7 +10,7 @@ services:
       POSTGRES_PASSWORD: localdev
       POSTGRES_DB: claimpilot
     ports:
-      - "5433:5432"          # host:container — lets your Mac reach it
+      - "5433:5432"          # host:container; 5432 is taken by a native Postgres on this Mac
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -16,6 +18,51 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  ml-service:
+    profiles: [full, ml]
+    build: ./apps/ml-service
+    ports:
+      - "8010:8000"          # 8000 is often taken on the host
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')"]
+      interval: 10s
+      start_period: 60s
+
+  migrate:
+    profiles: [full]
+    build: { context: ., dockerfile: apps/api/Dockerfile, target: build }
+    command: ["pnpm", "--filter", "@claimpilot/db", "migrate"]
+    environment:
+      DATABASE_URL: postgresql://claimpilot:localdev@postgres:5432/claimpilot
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    profiles: [full]
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    env_file: apps/api/.env
+    environment:
+      DATABASE_URL: postgresql://claimpilot:localdev@postgres:5432/claimpilot
+      ML_SERVICE_URL: http://ml-service:8000
+      STORAGE_DRIVER: local
+      LOCAL_STORAGE_DIR: /tmp/uploads
+      WEB_ORIGIN: http://localhost:8080
+    ports: ["3000:3000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      ml-service: { condition: service_healthy }
+
+  web:
+    profiles: [full]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: http://localhost:3000
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+    ports: ["8080:8080"]
 
 volumes:
   postgres_data:

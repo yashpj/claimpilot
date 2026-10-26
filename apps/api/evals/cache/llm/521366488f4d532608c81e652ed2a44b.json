@@ -1,0 +1,23 @@
+{
+ "value": {
+  "is_vehicle": true,
+  "damage_locations": [
+   "rear bumper",
+   "trunk",
+   "rear quarter panel"
+  ],
+  "severity_estimate": "severe",
+  "matches_description": true,
+  "flags": [
+   "multiple_vehicles"
+  ],
+  "confidence": 0.95,
+  "summary": "The photo shows severe rear-end damage to the white sedan, including a crushed trunk area and a displaced rear bumper, consistent with the customer's description."
+ },
+ "usage": {
+  "inputTokens": 1430,
+  "outputTokens": 125
+ },
+ "model": "gemini-flash-lite-latest",
+ "latencyMs": 1258
+}

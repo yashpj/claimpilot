@@ -1,0 +1,19 @@
+{
+ "value": {
+  "is_vehicle": false,
+  "damage_locations": [],
+  "severity_estimate": "none",
+  "matches_description": false,
+  "flags": [
+   "no_visible_damage"
+  ],
+  "confidence": 1,
+  "summary": "The photo shows a dog in the grass instead of a motor vehicle, which does not match the customer's description of front bumper damage."
+ },
+ "usage": {
+  "inputTokens": 1420,
+  "outputTokens": 101
+ },
+ "model": "gemini-flash-lite-latest",
+ "latencyMs": 15835
+}

@@ -1,0 +1,37 @@
+{
+ "modelVersion": "yolov11n-car-damage@hf:vineetsarpal",
+ "detections": [
+  [
+   {
+    "class": "bonnet-dent",
+    "confidence": 0.8469,
+    "bbox": [
+     266.5,
+     211.9,
+     762.2,
+     356.5
+    ]
+   },
+   {
+    "class": "Front-windscreen-damage",
+    "confidence": 0.4514,
+    "bbox": [
+     268.3,
+     77.8,
+     508.6,
+     223.7
+    ]
+   },
+   {
+    "class": "front-bumper-dent",
+    "confidence": 0.1736,
+    "bbox": [
+     252.3,
+     369.6,
+     786.7,
+     550
+    ]
+   }
+  ]
+ ]
+}

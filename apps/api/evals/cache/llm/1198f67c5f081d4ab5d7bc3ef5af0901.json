@@ -1,0 +1,20 @@
+{
+ "value": {
+  "is_vehicle": true,
+  "damage_locations": [
+   "hood",
+   "front bumper"
+  ],
+  "severity_estimate": "severe",
+  "matches_description": true,
+  "flags": [],
+  "confidence": 1,
+  "summary": "The photo shows severe front-end damage including a crumpled hood and missing front bumper, which is consistent with the customer's description of hitting a pole."
+ },
+ "usage": {
+  "inputTokens": 1408,
+  "outputTokens": 106
+ },
+ "model": "gemini-flash-lite-latest",
+ "latencyMs": 1283
+}

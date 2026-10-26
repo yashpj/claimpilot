@@ -1,0 +1,42 @@
+# Live evals: real Gemini + real ml-service. Manual / weekly, because it
+# costs quota and is slower. Use it to re-record cassettes after a prompt or
+# model change (download the artifact and commit apps/api/evals/cache).
+name: live-evals
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: claimpilot, POSTGRES_PASSWORD: localdev, POSTGRES_DB: claimpilot_test }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U claimpilot" --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://claimpilot:localdev@localhost:5432/claimpilot_test
+      EVAL_DATABASE_URL: postgresql://claimpilot:localdev@localhost:5432/claimpilot_test
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      ML_SERVICE_URL: http://localhost:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc, cache: pnpm }
+      - run: pnpm install --frozen-lockfile && pnpm build:packages && pnpm migrate
+      - run: docker build -t ml apps/ml-service && docker run -d -p 8000:8000 ml
+      - run: until curl -sf localhost:8000/health/ready; do sleep 2; done
+      - run: pnpm eval
+        env: { EVAL_MODE: record }
+      - run: pnpm --filter api judge
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-eval
+          path: |
+            apps/api/evals/reports/latest.json
+            apps/api/evals/cache

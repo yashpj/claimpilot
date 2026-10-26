@@ -1,0 +1,21 @@
+{
+ "value": {
+  "is_vehicle": true,
+  "damage_locations": [
+   "front bumper",
+   "hood",
+   "front end"
+  ],
+  "severity_estimate": "severe",
+  "matches_description": false,
+  "flags": [],
+  "confidence": 1,
+  "summary": "The photo shows severe front-end and hood damage, which contradicts the customer's description of being rear-ended with a smashed trunk."
+ },
+ "usage": {
+  "inputTokens": 1405,
+  "outputTokens": 109
+ },
+ "model": "gemini-flash-lite-latest",
+ "latencyMs": 1141
+}

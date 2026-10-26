@@ -1,0 +1,21 @@
+{
+ "value": {
+  "is_vehicle": true,
+  "damage_locations": [
+   "hood",
+   "windshield",
+   "front headlight"
+  ],
+  "severity_estimate": "severe",
+  "matches_description": true,
+  "flags": [],
+  "confidence": 0.95,
+  "summary": "The photo shows heavy denting to the hood and a shattered windshield, which matches the customer's description of hitting a deer."
+ },
+ "usage": {
+  "inputTokens": 1454,
+  "outputTokens": 108
+ },
+ "model": "gemini-flash-lite-latest",
+ "latencyMs": 1968
+}

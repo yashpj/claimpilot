@@ -1,58 +1,54 @@
-import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiFetch, apiPost } from "../lib/api";
-import { useNavigate } from "react-router-dom";
+import { money } from "../lib/format";
 
-type Policy = { id: string; status: string; planType: string; premium: number };
+type Policy = { id: string; status: string; planType: string; premium: number; coverageStart: string | null; coverageEnd: string | null };
 
 export default function PolicyDetail() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
-  const [policy, setPolicy] = useState<Policy | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const justPaid = searchParams.get("paid") === "1";
 
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch<Policy>(`/policies/${id}`)
-      .then((p) => { if (!cancelled) setPolicy(p); })
-      .catch((e) => { if (!cancelled) setError((e as Error).message); });
-    return () => { cancelled = true; };
-  }, [id]);
+  const { data: policy, error } = useQuery({
+    queryKey: ["policy", id],
+    queryFn: () => apiFetch<Policy>(`/policies/${id}`),
+    // Back from Stripe but the webhook hasn't landed yet: poll until it does.
+    // (The webhook, not this redirect, is what activates the policy.)
+    refetchInterval: (q) => (justPaid && q.state.data?.status === "pending_payment" ? 1500 : false),
+  });
 
-  async function pay() {
-    const { url } = await apiPost<{ url: string }>(`/policies/${id}/checkout`, {});
-    window.location.href = url;   // hand off to Stripe
-  }
+  const pay = useMutation({
+    mutationFn: () => apiPost<{ url: string }>(`/policies/${id}/checkout`, {}),
+    onSuccess: ({ url }) => { window.location.href = url; }, // hand off to Stripe
+  });
 
-  async function fileClaim() {
-    const claim = await apiPost<{ id: string }>("/claims", { policyId: policy.id });
-    navigate(`/claims/${claim.id}`);
-  }
-// render when policy.status === "active":
-// <button onClick={fileClaim}>File a claim</button>
-  if (error) return <p>Error: {error}</p>;
+  const fileClaim = useMutation({
+    mutationFn: () => apiPost<{ id: string }>("/claims", { policyId: id }),
+    onSuccess: (claim) => navigate(`/claims/${claim.id}`),
+  });
+
+  if (error) return <p className="error">{error.message}</p>;
   if (!policy) return <p>Loading…</p>;
 
   return (
     <div>
-      <h1>Policy {policy.id}</h1>
-      <p>Status: {policy.status}</p>
-      <p>Premium: ${(policy.premium / 100).toFixed(2)}</p>
-
-      {justPaid && policy.status === "pending_payment" && (
-        <p>Payment received — activating your policy…</p>
+      <h2>Policy {policy.id.slice(0, 8)}</h2>
+      <p>Status: <span className={`badge ${policy.status}`}>{policy.status}</span></p>
+      <p>Premium: {money(policy.premium)}</p>
+      {policy.coverageEnd && (
+        <p>Coverage: {new Date(policy.coverageStart!).toLocaleDateString()} – {new Date(policy.coverageEnd).toLocaleDateString()}</p>
       )}
 
+      {justPaid && policy.status === "pending_payment" && <p>Payment received — activating your policy…</p>}
       {policy.status === "pending_payment" && !justPaid && (
-        <button onClick={pay}>Pay now</button>
+        <button onClick={() => pay.mutate()} disabled={pay.isPending}>Pay now</button>
       )}
-
       {policy.status === "active" && (
-        <button onClick={fileClaim}>File a claim</button>
+        <button onClick={() => fileClaim.mutate()} disabled={fileClaim.isPending}>File a claim</button>
       )}
-
+      {(pay.error || fileClaim.error) && <p className="error">{(pay.error ?? fileClaim.error)?.message}</p>}
     </div>
   );
 }

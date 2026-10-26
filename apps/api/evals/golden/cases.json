@@ -1,0 +1,245 @@
+{
+  "defaults": {
+    "incidentDate": "2026-10-01",
+    "claimedAmountCents": 150000
+  },
+  "cases": [
+    {
+      "id": "rear-end-correct",
+      "image": "rear_end_sedan.jpg",
+      "description": "A taxi rear-ended me at a red light. The rear bumper was knocked loose and the trunk is damaged.",
+      "expected": {
+        "matches_description": true,
+        "flags": []
+      }
+    },
+    {
+      "id": "rear-end-claims-hail",
+      "image": "rear_end_sedan.jpg",
+      "description": "A hail storm last night left dents all over my roof and hood.",
+      "expected": {
+        "matches_description": false,
+        "flags": [
+          "description_mismatch"
+        ]
+      }
+    },
+    {
+      "id": "tree-correct",
+      "image": "front_tree_hatchback.jpg",
+      "description": "I slid on a wet road and hit a tree with the front of my car. A headlight and the front bumper are broken.",
+      "expected": {
+        "matches_description": true,
+        "flags": []
+      }
+    },
+    {
+      "id": "tree-claims-rear",
+      "image": "front_tree_hatchback.jpg",
+      "description": "Someone backed into my rear bumper in a parking lot and drove off.",
+      "expected": {
+        "matches_description": false,
+        "flags": [
+          "description_mismatch"
+        ]
+      }
+    },
+    {
+      "id": "windshield-correct",
+      "image": "shattered_windshield.jpg",
+      "description": "Something hit my windshield overnight and the whole windshield is shattered.",
+      "expected": {
+        "matches_description": true,
+        "flags": []
+      }
+    },
+    {
+      "id": "windshield-claims-mirror",
+      "image": "shattered_windshield.jpg",
+      "description": "My driver side mirror was knocked off by a passing truck.",
+      "expected": {
+        "matches_description": false,
+        "flags": [
+          "description_mismatch"
+        ]
+      }
+    },
+    {
+      "id": "scratch-correct",
+      "image": "fender_paint_chip.jpg",
+      "description": "Minor scrape on the rear fender above the wheel. Some paint chipped off.",
+      "claimedAmountCents": 40000,
+      "expected": {
+        "matches_description": true,
+        "flags": []
+      }
+    },
+    {
+      "id": "scratch-claims-headon",
+      "image": "fender_paint_chip.jpg",
+      "description": "Head-on collision, the whole front bumper and hood were crushed.",
+      "expected": {
+        "matches_description": false,
+        "flags": [
+          "description_mismatch"
+        ]
+      }
+    },
+    {
+      "id": "undamaged-claims-door",
+      "image": "undamaged_sedan.jpg",
+      "description": "I was sideswiped and the driver side door is smashed in.",
+      "expected": {
+        "matches_description": false,
+        "flags": [
+          "description_mismatch"
+        ]
+      }
+    },
+    {
+      "id": "undamaged-claims-body",
+      "image": "undamaged_sedan.jpg",
+      "description": "My car was vandalised, there are deep dents along the whole body.",
+      "expected": {
+        "matches_description": false,
+        "flags": [
+          "description_mismatch"
+        ]
+      }
+    },
+    {
+      "id": "pole-correct",
+      "image": "front_pole_sedan.jpg",
+      "description": "I drove into a pole at an intersection. The hood and front bumper are crumpled.",
+      "expected": {
+        "matches_description": true,
+        "flags": [
+          "stock_or_screenshot"
+        ]
+      },
+      "note": "Source photo has mosaic-blurred faces: genuinely edited, so stock_or_screenshot is expected."
+    },
+    {
+      "id": "pole-claims-trunk",
+      "image": "front_pole_sedan.jpg",
+      "description": "I was rear-ended on the highway and the trunk is smashed.",
+      "expected": {
+        "matches_description": false,
+        "flags": [
+          "description_mismatch",
+          "stock_or_screenshot"
+        ]
+      },
+      "note": "Source photo has mosaic-blurred faces: genuinely edited, so stock_or_screenshot is expected."
+    },
+    {
+      "id": "pickup-correct",
+      "image": "pickup_side_dent.jpg",
+      "description": "A car hit the side of my pickup truck and left a dent on the side panel.",
+      "expected": {
+        "matches_description": true,
+        "flags": []
+      }
+    },
+    {
+      "id": "pickup-claims-windshield",
+      "image": "pickup_side_dent.jpg",
+      "description": "Hail cracked my windshield all over.",
+      "expected": {
+        "matches_description": false,
+        "flags": [
+          "description_mismatch"
+        ]
+      }
+    },
+    {
+      "id": "deer-correct",
+      "image": "hood_windshield_suv.jpg",
+      "description": "I hit a deer on a rural road. The hood is dented and the windshield is smashed.",
+      "expected": {
+        "matches_description": true,
+        "flags": []
+      }
+    },
+    {
+      "id": "deer-claims-scratch",
+      "image": "hood_windshield_suv.jpg",
+      "description": "Just a small scratch on the rear bumper from a shopping cart.",
+      "expected": {
+        "matches_description": false,
+        "flags": [
+          "description_mismatch"
+        ]
+      }
+    },
+    {
+      "id": "bumper-corner-correct",
+      "image": "front_bumper_corner.jpg",
+      "description": "I clipped a pole while parking. The front bumper corner near the headlight is cracked.",
+      "expected": {
+        "matches_description": true,
+        "flags": []
+      }
+    },
+    {
+      "id": "rear-end-big-amount",
+      "image": "rear_end_sedan.jpg",
+      "description": "A taxi rear-ended me at a red light. The rear bumper was knocked loose and the trunk is damaged.",
+      "claimedAmountCents": 1200000,
+      "expected": {
+        "matches_description": true,
+        "flags": [
+          "amount_above_threshold"
+        ]
+      }
+    },
+    {
+      "id": "screenshot",
+      "image": "screenshot_rear_end.jpg",
+      "description": "A taxi rear-ended me at a red light. The rear bumper was knocked loose and the trunk is damaged.",
+      "expected": {
+        "matches_description": true,
+        "flags": [
+          "stock_or_screenshot"
+        ]
+      }
+    },
+    {
+      "id": "old-exif",
+      "image": "front_pole_old_exif.jpg",
+      "description": "I drove into a pole at an intersection. The hood and front bumper are crumpled.",
+      "expected": {
+        "matches_description": true,
+        "flags": [
+          "exif_date_mismatch",
+          "stock_or_screenshot"
+        ]
+      },
+      "note": "Source photo has mosaic-blurred faces: genuinely edited, so stock_or_screenshot is expected."
+    },
+    {
+      "id": "duplicate-photo",
+      "image": "front_tree_hatchback.jpg",
+      "duplicateOfPriorClaim": true,
+      "description": "I slid on a wet road and hit a tree with the front of my car. A headlight and the front bumper are broken.",
+      "expected": {
+        "matches_description": true,
+        "flags": [
+          "duplicate_image"
+        ]
+      }
+    },
+    {
+      "id": "not-a-vehicle",
+      "image": "dog_not_vehicle.jpg",
+      "description": "My front bumper was dented when I backed into a wall.",
+      "expected": {
+        "matches_description": false,
+        "is_vehicle": false,
+        "flags": [
+          "not_a_vehicle"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+ "value": {
+  "is_vehicle": true,
+  "damage_locations": [
+   "front fender"
+  ],
+  "severity_estimate": "minor",
+  "matches_description": false,
+  "flags": [],
+  "confidence": 1,
+  "summary": "The photo shows minor paint damage and chipping on a side fender, which contradicts the customer's description of a crushed front bumper and hood from a head-on collision."
+ },
+ "usage": {
+  "inputTokens": 1421,
+  "outputTokens": 104
+ },
+ "model": "gemini-flash-lite-latest",
+ "latencyMs": 1242
+}

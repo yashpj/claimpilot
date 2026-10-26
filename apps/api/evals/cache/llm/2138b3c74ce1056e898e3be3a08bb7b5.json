@@ -1,0 +1,23 @@
+{
+ "value": {
+  "is_vehicle": true,
+  "damage_locations": [
+   "front passenger side door",
+   "rear passenger side body panel",
+   "passenger side body side"
+  ],
+  "severity_estimate": "moderate",
+  "matches_description": false,
+  "flags": [
+   "multiple_vehicles"
+  ],
+  "confidence": 0,
+  "summary": "The photo shows heavy dents and body damage along the passenger side of the blue pickup truck, which does not match the customer's description of hail cracking the windshield."
+ },
+ "usage": {
+  "inputTokens": 1414,
+  "outputTokens": 132
+ },
+ "model": "gemini-flash-lite-latest",
+ "latencyMs": 5703
+}

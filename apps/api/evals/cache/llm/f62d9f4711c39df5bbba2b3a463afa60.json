@@ -1,0 +1,19 @@
+{
+ "value": {
+  "is_vehicle": true,
+  "damage_locations": [
+   "windshield"
+  ],
+  "severity_estimate": "severe",
+  "matches_description": false,
+  "flags": [],
+  "confidence": 1,
+  "summary": "The photo shows severe damage to the windshield, whereas the customer described a knocked-off driver side mirror."
+ },
+ "usage": {
+  "inputTokens": 1403,
+  "outputTokens": 91
+ },
+ "model": "gemini-flash-lite-latest",
+ "latencyMs": 984
+}

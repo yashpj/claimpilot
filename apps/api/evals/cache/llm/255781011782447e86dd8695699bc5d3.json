@@ -1,0 +1,19 @@
+{
+ "value": {
+  "is_vehicle": true,
+  "damage_locations": [],
+  "severity_estimate": "none",
+  "matches_description": false,
+  "flags": [
+   "no_visible_damage"
+  ],
+  "confidence": 1,
+  "summary": "The photo shows a police vehicle from the passenger side with no visible damage, which contradicts the customer's claim of a smashed driver-side door."
+ },
+ "usage": {
+  "inputTokens": 1421,
+  "outputTokens": 103
+ },
+ "model": "gemini-flash-lite-latest",
+ "latencyMs": 1548
+}

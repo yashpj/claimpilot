@@ -1,0 +1,14 @@
+# Never send secrets or local state into a build context.
+**/.env
+**/.env.*
+!**/.example.env
+**/node_modules
+**/dist
+.git
+**/.DS_Store
+apps/ml-service
+apps/api/.data
+apps/api/.scratch
+apps/api/evals
+apps/api/coverage
+infra

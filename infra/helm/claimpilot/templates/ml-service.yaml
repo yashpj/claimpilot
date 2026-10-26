@@ -1,0 +1,55 @@
+{{- if .Values.mlService.enabled }}
+{{- $ctx := dict "root" . "name" "ml-service" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-service
+  labels: {{- include "cp.labels" $ctx | nindent 4 }}
+spec:
+  replicas: {{ .Values.mlService.replicas }}
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels: {{- include "cp.selector" $ctx | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "cp.labels" $ctx | nindent 8 }}
+    spec:
+      {{- include "cp.podSecurity" . | nindent 6 }}
+      containers:
+        - name: ml-service
+          image: {{ include "cp.image" $ctx }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - { name: http, containerPort: 8000 }
+          resources: {{- toYaml .Values.mlService.resources | nindent 12 }}
+          # Slow start (torch + weights). startupProbe holds off liveness until
+          # the model is loaded; without it, liveness would kill the pod mid-
+          # load and it would restart forever (CrashLoopBackOff).
+          startupProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: {{ .Values.mlService.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.mlService.startupProbe.failureThreshold }}
+          livenessProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /health/ready, port: http }
+            periodSeconds: 10
+          {{- include "cp.containerSecurity" . | nindent 10 }}
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }   # YOLO_CONFIG_DIR
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ml-service
+  labels: {{- include "cp.labels" $ctx | nindent 4 }}
+spec:
+  selector: {{- include "cp.selector" $ctx | nindent 4 }}
+  ports:
+    - { name: http, port: 8000, targetPort: http }
+{{- end }}

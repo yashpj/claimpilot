@@ -1,9 +1,14 @@
-import { Inject, Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from "@nestjs/common";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import * as schema from "@claimpilot/db";
 import { PLANS, PlanType, type CreatePolicyInput } from "@claimpilot/shared";
 import { DRIZZLE } from "../database/database.module";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import Stripe from "stripe";
 import { STRIPE } from "../stripe/stripe.module";
 import { ConfigService } from "@nestjs/config";
@@ -12,8 +17,8 @@ import { ConfigService } from "@nestjs/config";
 export class PoliciesService {
   constructor(
     @Inject(DRIZZLE) private readonly db: PostgresJsDatabase<typeof schema>,
-        @Inject(STRIPE) private readonly stripe: Stripe,
-    private readonly config: ConfigService
+    @Inject(STRIPE) private readonly stripe: Stripe,
+    private readonly config: ConfigService,
   ) {}
 
   async create(userId: string, input: CreatePolicyInput) {
@@ -47,14 +52,16 @@ export class PoliciesService {
     });
   }
 
-    async createCheckoutSession(userId: string, policyId: string) {
+  async createCheckoutSession(userId: string, policyId: string) {
     const [policy] = await this.db
       .select()
       .from(schema.policies)
-      .where(and(
-        eq(schema.policies.id, policyId),
-        eq(schema.policies.userId, userId),   // ownership check
-      ));
+      .where(
+        and(
+          eq(schema.policies.id, policyId),
+          eq(schema.policies.userId, userId), // ownership check
+        ),
+      );
 
     if (!policy) throw new NotFoundException("Policy not found");
     if (policy.status !== "pending_payment") {
@@ -62,19 +69,21 @@ export class PoliciesService {
     }
 
     const plan = PLANS[policy.planType as PlanType];
-    const webOrigin = this.config.getOrThrow("WEB_ORIGIN");
+    const webOrigin = this.config.getOrThrow<string>("WEB_ORIGIN");
 
     const session = await this.stripe.checkout.sessions.create({
       mode: "payment",
-      line_items: [{
-        price_data: {
-          currency: "cad",
-          product_data: { name: `${plan.name} — Motor Insurance` },
-          unit_amount: policy.premium,        // from OUR db, not the client
+      line_items: [
+        {
+          price_data: {
+            currency: "cad",
+            product_data: { name: `${plan.name} — Motor Insurance` },
+            unit_amount: policy.premium, // from OUR db, not the client
+          },
+          quantity: 1,
         },
-        quantity: 1,
-      }],
-      metadata: { policyId: policy.id },      // ← the thread to the webhook
+      ],
+      metadata: { policyId: policy.id }, // ← the thread to the webhook
       success_url: `${webOrigin}/policies/${policy.id}?paid=1`,
       cancel_url: `${webOrigin}/policies/${policy.id}?cancelled=1`,
     });
@@ -87,15 +96,30 @@ export class PoliciesService {
     return { url: session.url };
   }
 
+  async list(userId: string) {
+    return this.db
+      .select({ policy: schema.policies, vehicle: schema.vehicles })
+      .from(schema.policies)
+      .innerJoin(
+        schema.vehicles,
+        eq(schema.policies.vehicleId, schema.vehicles.id),
+      )
+      .where(eq(schema.policies.userId, userId))
+      .orderBy(desc(schema.policies.coverageStart))
+      .then((rows) => rows.map((r) => ({ ...r.policy, vehicle: r.vehicle })));
+  }
+
   async findOne(userId: string, policyId: string) {
-  const [policy] = await this.db
-    .select()
-    .from(schema.policies)
-    .where(and(
-      eq(schema.policies.id, policyId),
-      eq(schema.policies.userId, userId),
-    ));
-  if (!policy) throw new NotFoundException();
-  return policy;
-    }
+    const [policy] = await this.db
+      .select()
+      .from(schema.policies)
+      .where(
+        and(
+          eq(schema.policies.id, policyId),
+          eq(schema.policies.userId, userId),
+        ),
+      );
+    if (!policy) throw new NotFoundException();
+    return policy;
+  }
 }

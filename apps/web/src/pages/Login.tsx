@@ -10,20 +10,20 @@ export default function Login() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate("/buy");
+      if (data.session) navigate("/home");
     });
   }, [navigate]);
 
   async function signIn() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) setError(error.message);
-    else navigate("/buy");
+    else navigate("/home");
   }
 
   async function signUp() {
     const { error } = await supabase.auth.signUp({ email, password });
     if (error) setError(error.message);
-    else navigate("/buy");
+    else navigate("/home");
   }
 
   return (

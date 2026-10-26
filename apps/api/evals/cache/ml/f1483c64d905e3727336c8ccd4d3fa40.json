@@ -1,0 +1,27 @@
+{
+ "modelVersion": "yolov11n-car-damage@hf:vineetsarpal",
+ "detections": [
+  [
+   {
+    "class": "Headlight-damage",
+    "confidence": 0.6096,
+    "bbox": [
+     520.2,
+     85.6,
+     726,
+     261.9
+    ]
+   },
+   {
+    "class": "front-bumper-dent",
+    "confidence": 0.5239,
+    "bbox": [
+     3.1,
+     233.4,
+     724.3,
+     584.8
+    ]
+   }
+  ]
+ ]
+}

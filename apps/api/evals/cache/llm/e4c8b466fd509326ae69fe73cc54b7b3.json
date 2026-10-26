@@ -1,0 +1,24 @@
+{
+ "value": {
+  "is_vehicle": true,
+  "damage_locations": [
+   "rear bumper",
+   "trunk",
+   "rear quarter panel"
+  ],
+  "severity_estimate": "severe",
+  "matches_description": true,
+  "flags": [
+   "screenshot",
+   "multiple_vehicles"
+  ],
+  "confidence": 0.95,
+  "summary": "The photo shows a white sedan struck from behind by a taxi, resulting in severe damage to the rear bumper and trunk area. The image is a screenshot containing UI elements."
+ },
+ "usage": {
+  "inputTokens": 1431,
+  "outputTokens": 132
+ },
+ "model": "gemini-flash-lite-latest",
+ "latencyMs": 6133
+}

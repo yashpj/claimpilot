@@ -1,0 +1,20 @@
+{
+ "value": {
+  "is_vehicle": true,
+  "damage_locations": [
+   "side panel",
+   "cab side door"
+  ],
+  "severity_estimate": "moderate",
+  "matches_description": true,
+  "flags": [],
+  "confidence": 1,
+  "summary": "The photo shows visible dents and impact damage along the side panel and door of the blue pickup truck, which matches the customer's description."
+ },
+ "usage": {
+  "inputTokens": 1425,
+  "outputTokens": 106
+ },
+ "model": "gemini-flash-lite-latest",
+ "latencyMs": 1267
+}

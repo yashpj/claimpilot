@@ -3,9 +3,14 @@
   "private": true,
   "packageManager": "pnpm@9.0.0",
   "scripts": {
-    "dev": "echo 'wire up per-app dev later'",
-    "lint": "pnpm -r lint",
-    "typecheck": "pnpm -r typecheck"
+    "build:packages": "pnpm --filter @claimpilot/shared build && pnpm --filter @claimpilot/db build",
+    "lint": "pnpm --filter api lint && pnpm --filter web lint",
+    "typecheck": "pnpm --filter api typecheck && pnpm --filter web exec tsc -b",
+    "test": "pnpm --filter api test",
+    "test:int": "pnpm --filter api test:int",
+    "migrate": "pnpm --filter @claimpilot/db migrate",
+    "seed": "pnpm --filter api seed",
+    "eval": "pnpm --filter api eval"
   },
   "devDependencies": {
     "typescript": "^5.4.0"

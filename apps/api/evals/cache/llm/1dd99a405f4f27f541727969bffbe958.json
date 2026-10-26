@@ -1,0 +1,21 @@
+{
+ "value": {
+  "is_vehicle": true,
+  "damage_locations": [
+   "front windshield",
+   "hood",
+   "front bumper"
+  ],
+  "severity_estimate": "severe",
+  "matches_description": false,
+  "flags": [],
+  "confidence": 1,
+  "summary": "The photo shows severe front-end and windshield damage, which completely contradicts the customer's description of a small scratch on the rear bumper."
+ },
+ "usage": {
+  "inputTokens": 1447,
+  "outputTokens": 109
+ },
+ "model": "gemini-flash-lite-latest",
+ "latencyMs": 1305
+}

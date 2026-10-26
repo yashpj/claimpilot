@@ -1,0 +1,19 @@
+{
+ "value": {
+  "is_vehicle": true,
+  "damage_locations": [],
+  "severity_estimate": "none",
+  "matches_description": false,
+  "flags": [
+   "no_visible_damage"
+  ],
+  "confidence": 1,
+  "summary": "The photo shows a police car and other vehicles on a street with no visible damage, contradicting the customer's description of deep dents along the whole body."
+ },
+ "usage": {
+  "inputTokens": 1422,
+  "outputTokens": 104
+ },
+ "model": "gemini-flash-lite-latest",
+ "latencyMs": 1232
+}

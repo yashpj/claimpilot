@@ -1,0 +1,5 @@
+ClaimPilot {{ .Values.image.tag | trunc 12 }} deployed to {{ .Release.Namespace }}.
+
+  App:      http://{{ .Values.ingress.host }}:8081   (k3d LB port; API under /api)
+  Status:   kubectl -n {{ .Release.Namespace }} get pods,hpa,pdb
+  Rollback: helm -n {{ .Release.Namespace }} rollback {{ .Release.Name }}

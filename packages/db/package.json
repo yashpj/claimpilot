@@ -12,7 +12,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "migrate": "node dist/migrate.js",
+    "generate": "drizzle-kit generate"
   },
   "keywords": [],
   "author": "",
@@ -26,5 +27,9 @@
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
     "typescript": "^5.4.0"
-  }
+  },
+  "files": [
+    "dist",
+    "drizzle"
+  ]
 }

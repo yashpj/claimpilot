@@ -2,7 +2,7 @@
 
 An AI-assisted motor-insurance claims platform. Customers buy a policy, then file a claim through a conversational agent that collects incident details, gathers required documents, and — critically — **triages claims to human reviewers rather than auto-deciding them**. Built as a production-shaped system: typed end to end, idempotent payments, an agent whose state survives restarts, and an append-only audit trail.
 
-> **Status:** actively building. The core platform — authentication, payments, and the claims agent — is fully working and deployed. AI fraud analysis, the reviewer dashboard, and the Kubernetes/observability stack are on the roadmap below. This README describes what exists today and is explicit about what doesn't yet.
+> **Status:** feature-complete for sprint 1. Payments, the claims agent (intake → documents → VLM + YOLO consistency analysis → fraud checks → rule-based triage), the reviewer dashboard, the Slack bot, the eval gate in CI, and the Kubernetes/monitoring setup all exist. This README is explicit about what is verified and what isn't yet (see *Verification status*).
 
 ---
 
@@ -20,162 +20,135 @@ Most "AI agent" demos are a chat loop wrapped around an LLM. Real claims process
 
 ```mermaid
 graph TD
-    %% TIER 1: FRONTEND
-    subgraph Tier1 ["Tier 1 — Frontend"]
-        Frontend["apps/web<br/>React · Vite · React Query"]
+    subgraph Clients
+        Web["apps/web<br/>React · Vite · React Query<br/>customer chat + /admin"]
+        Slack["Slack<br/>review channel"]
     end
-    %% TIER 2: BACKEND
-    subgraph Tier2 ["apps/api · NestJS + Express"]
-        subgraph RowA ["Request Handling"]
-            AuthGuard["Auth guard<br/>(Supabase JWT)"]
-            Policies["Policies<br/>(plans + checkout)"]
-            PaymentsBox["Payments<br/>(Stripe webhook)"]
-        end
-        subgraph RowB ["AI Core"]
-            ClaimsAPI["Claims API<br/>(chat + polling)"]
-            Agent["Agent<br/>(LangGraph state machine)"]
-            LLMBox["LLM<br/>(provider-agnostic)"]
-        end
-        AuthGuard --> Policies
-        AuthGuard --> ClaimsAPI
-        ClaimsAPI --> Agent
-        Agent --> LLMBox
+    subgraph API ["apps/api · NestJS"]
+        Guards["AuthGuard + RolesGuard"]
+        Policies["Policies + Stripe webhook"]
+        Claims["Claims<br/>(chat, uploads, advisory lock)"]
+        Agent["Agent · LangGraph<br/>intake → documents → consistency → fraud → triage"]
+        Reviews["Reviews<br/>(decide, overturn, metrics)"]
+        SlackBot["Slack bot · Bolt"]
+        Obs["Observability<br/>Langfuse tracer · Prometheus :9464"]
     end
-    %% TIER 3: SHARED PACKAGES
-    subgraph Tier3 ["Tier 3 — Shared Packages"]
-        PkgDB["packages/db<br/>(schema + migrations)"]
-        PkgShared["packages/shared<br/>(Zod schemas + config)"]
-    end
-    %% TIER 4: EXTERNAL SERVICES
-    subgraph Tier4 ["Tier 4 — External Services"]
-        ExtPostgres[("Postgres<br/>(Drizzle ORM)")]
-        ExtStripe["Stripe<br/>(payments)"]
-        ExtGemini["Gemini<br/>(LLM API)"]
-    end
-    %% CONNECTIONS
-    Frontend -->|HTTPS| AuthGuard
-    Agent -.->|imported by| PkgDB
-    ClaimsAPI -.->|imported by| PkgShared
-    Agent --> ExtPostgres
-    PaymentsBox --> ExtStripe
-    LLMBox --> ExtGemini
-    %% STYLING
-    style Frontend fill:#EAF2FB,stroke:#3B82C4,stroke-width:2px,color:#1E3A5F
-    style Tier1 fill:none,stroke:none
-    style Tier2 fill:none,stroke:#6366B7,stroke-width:1px,stroke-dasharray: 5 5,color:#2E2C6B
-    style RowA fill:none,stroke:none
-    style RowB fill:none,stroke:none
-    style AuthGuard fill:#EEF0FA,stroke:#6366B7,stroke-width:2px,color:#2E2C6B
-    style Policies fill:#EEF0FA,stroke:#6366B7,stroke-width:2px,color:#2E2C6B
-    style PaymentsBox fill:#EEF0FA,stroke:#6366B7,stroke-width:2px,color:#2E2C6B
-    style ClaimsAPI fill:#E6F4EF,stroke:#2A9D78,stroke-width:2px,color:#0F5140
-    style Agent fill:#E6F4EF,stroke:#2A9D78,stroke-width:2px,color:#0F5140
-    style LLMBox fill:#E6F4EF,stroke:#2A9D78,stroke-width:2px,color:#0F5140
-    style Tier3 fill:none,stroke:none
-    style PkgDB fill:#F5EEF7,stroke:#A15C9E,stroke-width:2px,color:#4A2247
-    style PkgShared fill:#F5EEF7,stroke:#A15C9E,stroke-width:2px,color:#4A2247
-    style Tier4 fill:none,stroke:none
-    style ExtPostgres fill:#FBF0E9,stroke:#C87941,stroke-width:2px,color:#5E3418
-    style ExtStripe fill:#FBF0E9,stroke:#C87941,stroke-width:2px,color:#5E3418
-    style ExtGemini fill:#FBF0E9,stroke:#C87941,stroke-width:2px,color:#5E3418
+    ML["apps/ml-service<br/>FastAPI · YOLO damage detector"]
+    PG[("Postgres<br/>tables · checkpoints · audit log")]
+    Gemini["Gemini<br/>(LlmProvider)"]
+    Storage["Supabase Storage<br/>(or local driver)"]
+    Stripe["Stripe"]
+    Web -->|HTTPS| Guards --> Claims --> Agent
+    Guards --> Reviews
+    Guards --> Policies --> Stripe
+    Agent --> Gemini
+    Agent --> ML
+    Agent --> PG
+    Claims --> Storage
+    Reviews -->|updateState| Agent
+    Claims -. "claim.triaged" .-> SlackBot --> Slack
+    Slack -->|buttons| SlackBot --> Reviews
 ```
-
-**Monorepo** (pnpm workspaces):
 
 | Package | Purpose |
 |---|---|
-| `apps/api` | NestJS backend — auth, payments, claims agent |
-| `apps/web` | React + Vite single-page app |
-| `packages/db` | Drizzle schema + SQL migrations, shared by API and tooling |
-| `packages/shared` | Zod schemas and plan config shared by API and web (one source of truth) |
+| `apps/api` | NestJS: Policies, Claims, Agent, Reviews, Slack, Observability; `evals/` and `scripts/seed.ts` |
+| `apps/web` | React + Vite SPA: buy, chat with uploads, `/admin` review dashboard |
+| `apps/ml-service` | Python FastAPI + Ultralytics YOLO car-damage detector |
+| `packages/db` | Drizzle schema + SQL migrations (+ runtime migrator for containers) |
+| `packages/shared` | Zod schemas, plans, **triage rules as data** |
+| `infra/` | raw k8s manifests, Helm chart, monitoring values + dashboard, k6, drills |
 
 ---
 
 ## Technical highlights
 
-These are the decisions worth reading the code for.
+### Triage, not auto-approval — with rules you can read
+The agent produces a **priority** (which queue) and an advisory **recommendation**; a human always decides. The rules are data in [`packages/shared/src/triage.ts`](packages/shared/src/triage.ts): thresholds, the flags that escalate, and how flags map to a recommendation. No rule lives in a prompt. When a reviewer disagrees with the recommendation, the review is stored as an **overturn**, the primary agent-quality metric.
+
+### Two opinions on every photo
+The consistency node calls a **VLM** (Gemini; strict JSON, Zod-validated) and a **specialist detector** (YOLO in `ml-service`) in parallel. If they disagree on whether there's damage, that's itself an escalation flag. Cheap deterministic fraud checks sit beside them: SHA-256 duplicate photos across claims, EXIF capture date far from the incident, and stock/screenshot detection.
+
+### Failure never blocks the customer
+If the VLM or ML service times out, errors, rate-limits, or returns garbage, the claim still reaches a human, flagged `analysis_incomplete` with the reason. The live evals hit Gemini's free-tier quota mid-run and every affected claim degraded exactly this way.
+
+### Evals gate CI
+A 22-case golden set (real Commons photos + synthetic screenshot/EXIF/duplicate cases, with correct and deliberately mismatched descriptions) runs through the **production graph**. CI replays recorded model outputs (deterministic, free, no secrets) and fails if description-match accuracy, false-flag rate or missed-flag rate regresses past `evals/baseline.json`. A prompt change misses the cache, which forces a fresh live recording. The vision model was **chosen by this suite**, not by vibes (see DECISIONS.md). An LLM-as-judge script grades conversational quality (field collection, no hallucinated policy terms).
 
 ### Idempotent Stripe webhooks
-Payment confirmation rides a signed, server-to-server **webhook**, never the browser redirect — the redirect is cosmetic UX, the webhook is the source of truth. Stripe guarantees *at-least-once* delivery, so duplicates are expected. Each event's ID is a primary key in a `processed_webhook_events` table; a duplicate delivery hits a unique-constraint violation and is safely ignored. The dedup insert and the policy activation happen in **one transaction**, so "recorded as processed" and "actually processed" can never diverge — even under concurrent delivery.
+Payment confirmation rides a signed, server-to-server **webhook**, never the browser redirect. Stripe delivers *at least once*, so duplicates are expected: each event ID is a primary key in `processed_webhook_events`, and the dedup insert and activation happen in one transaction.
 
-### The claims agent as a checkpointed state machine
-Built with **LangGraph**. The claim moves through explicit nodes — intake → document collection → (analysis → triage, roadmap) — with **conditional edges** that route on accumulated state. The agent's entire knowledge lives in one typed state object, which is **checkpointed to Postgres after every step**. Consequences:
+### A checkpointed state machine that survives restarts and scales out
+Agent state is checkpointed to Postgres after every node, so any API instance can serve any turn and a crash loses nothing. Per-claim `pg_advisory_xact_lock` serialises concurrent turns *across replicas*. Assessment writes are idempotent (`runId` as the primary key).
 
-- A crash or redeploy mid-claim loses nothing — a new process loads the checkpoint and resumes.
-- Any API instance can serve any request, because state lives in the datastore, not process memory. No sticky sessions.
+### Auditable by construction
+`claim_events` is append-only, **enforced by a database trigger**. The chat transcript and the admin audit timeline are projections of that log. Reviews, status changes, escalations, and agent assessments are all events.
 
-This is the same principle applied three times across the codebase — stateless services, state in a shared store — and it's what makes the system horizontally scalable (JWT auth holds no server session; webhook dedup lives in the DB; agent state is checkpointed).
-
-### Provider-agnostic LLM layer
-Every model call goes through an `LlmProvider` interface, bound to a concrete implementation (Gemini) by a single line of dependency injection. Swapping models is an env-var change; testing is done by injecting a fake provider that returns canned output. LLM responses are treated as **untrusted input** — every extraction is validated against a Zod schema before it's allowed into state, because model output drifts in shape, not just content.
-
-### Append-only audit log
-Every meaningful action writes an immutable `claim_events` row. The chat transcript itself is a *projection* of this log — messages aren't stored separately, they're read back from the event stream. One source of truth; full history for free.
-
-### Typed end to end
-Drizzle for typed SQL, Zod for runtime validation at every trust boundary (API inputs and LLM outputs), shared types between backend and frontend via the `shared` package. A schema is defined once and enforced everywhere.
+### Observable
+Every agent turn is a Langfuse trace (LLM generations with tokens/latency/cost, the ML call as a span). Prometheus scrapes an internal-only port: HTTP latency by route template, LLM calls/latency/cost, the claims funnel, and triage/decision counters. One Grafana dashboard plus alert rules (5xx spike → Slack).
 
 ---
 
 ## Tech stack
 
-**Backend:** NestJS · Express · TypeScript · Drizzle ORM · PostgreSQL · LangGraph · Zod
-**Frontend:** React · Vite · React Router · TanStack Query (React Query)
-**Infrastructure:** Supabase (Auth + hosted Postgres) · Stripe · Google Gemini · Docker Compose
-**Deployment:** Render (API) · Vercel (web) · Supabase (database)
-
----
-
-## What's built
-
-- **Authentication** — Supabase Auth with a NestJS guard validating JWTs on protected routes.
-- **Policy purchase** — plan selection, vehicle registration, Stripe Checkout, and idempotent webhook-driven activation. Verified end to end with Stripe test mode.
-- **Claims agent** — conversational intake that extracts structured incident details from free-form text, validates policy coverage, collects required documents, and advances through a checkpointed LangGraph state machine.
-- **Chat UI** — a polling-based claims chat (TanStack Query) that surfaces agent replies without a refresh.
-- **Deployed** — the full stack runs on the public internet (Vercel → Render → Supabase).
-
-## Roadmap
-
-Planned, not yet built:
-
-- **Vision-based damage analysis** — a VLM cross-checking damage photos against the incident description for consistency, plus rule-based fraud signals, feeding a triage decision.
-- **Reviewer dashboard** — a role-gated admin surface for humans to review triaged claims and record decisions.
-- **Dedicated ML service** — a Python service (e.g. YOLOv8) for object detection on damage photos, called by the agent.
-- **Evaluation harness** — a golden dataset and an automated eval suite that gates CI merges on agent-accuracy regression, with per-claim cost and latency tracing.
-- **Kubernetes deployment** — Helm charts, horizontal pod autoscaling, health/readiness/liveness probes, and a Prometheus/Grafana observability stack.
+**Backend:** NestJS · TypeScript (strict) · Drizzle · PostgreSQL · LangGraph · Zod · Bolt (Slack)
+**AI:** Gemini (flash-lite, behind `LlmProvider`) · Ultralytics YOLO (FastAPI) · Langfuse
+**Frontend:** React · Vite · React Router · TanStack Query
+**Delivery:** Docker (multi-stage, non-root) · GitHub Actions · GHCR · k3d · Helm · Traefik · kube-prometheus-stack · k6
 
 ---
 
 ## Running locally
 
-**Prerequisites:** Node (see `.nvmrc`), pnpm, Docker, and accounts for Supabase, Stripe (test mode), and Google Gemini.
-
 ```bash
-# 1. Install
 pnpm install
+docker compose up -d                      # Postgres on :5433
+pnpm build:packages                       # shared + db must build before the API
+pnpm migrate                              # packages/db/.env DATABASE_URL
+pnpm seed                                 # demo reviewer, customer, 5 triaged claims (no API key needed)
 
-# 2. Start Postgres
-docker compose up -d
+# ml-service (Python 3.12)
+cd apps/ml-service && uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requirements-dev.txt
+.venv/bin/python scripts/download_model.py && .venv/bin/uvicorn app.main:app --port 8010
 
-# 3. Build shared packages (required before the API compiles)
-pnpm --filter @claimpilot/db build
-pnpm --filter @claimpilot/shared build
-
-# 4. Apply migrations
-pnpm --filter @claimpilot/db migrate
-
-# 5. Run API and web (separate terminals)
-pnpm --filter api start:dev
-pnpm --filter web dev
-
-# 6. For local payment testing, forward Stripe webhooks
+pnpm --filter api start:dev               # :3000 (metrics on :9464)
+pnpm --filter web dev                     # :5173
 stripe listen --forward-to localhost:3000/webhooks/stripe
 ```
 
-Environment variables are documented per app in `apps/api/.env.example` and `apps/web/.env.example`. The API needs Supabase, Stripe, and Gemini credentials; the web app needs the Supabase URL/anon key and the API URL.
+To review claims as yourself: sign up in the web app, then `SEED_PROMOTE_EMAIL=you@example.com pnpm seed`.
+
+| Command | What |
+|---|---|
+| `pnpm lint` / `pnpm typecheck` | both apps |
+| `pnpm test` | unit tests (rules, cross-check, schemas, Slack signature) |
+| `pnpm test:int` | real graph + Postgres; fake LLM/ML (needs the docker DB) |
+| `pnpm eval` | eval gate (replay); `EVAL_MODE=record` fills missing cassettes live |
+| `pnpm --filter api judge` | LLM-as-judge over scripted conversations (live) |
+| `docker compose --profile full up --build` | whole stack in containers |
+
+Kubernetes (k3d + Helm): `infra/k8s/k3d-up.sh`, `infra/k8s/create-secrets.sh`, `infra/k8s/deploy.sh`. Rollback drill: `infra/k8s/rollback-drill.sh`. HPA load: `k6 run infra/k6/hpa-load.js`. Monitoring: see `infra/monitoring/kube-prometheus-stack.values.yaml`.
+
+---
+
+## Verification status
+
+| Area | Verified how |
+|---|---|
+| Agent flow, fraud, triage, reviews, reconciliation, locking | 20 integration tests on real Postgres (fake LLM/ML) |
+| Prompts on real models | live Gemini runs: intake conversations, 22-case eval, LLM-as-judge (4/4 pass) |
+| ml-service | pytest + live inference on the golden photos |
+| Admin + chat UI | exercised in a browser against the real API (auth stubbed locally) |
+| All three images | built; api smoke-tested (ready, metrics port isolation, non-root) |
+| Helm chart on k3d (k8s 1.35) | deployed: ingress `/` + `/api`, metrics not public, migrations hook, rolling upgrade |
+| DB outage at boot | Postgres stopped while an API pod booted: readiness 503 / liveness 200, retried, 0 restarts |
+| Rollback drill | broken image → rollout stalled, `helm rollback`; **99/99 requests 200 during the drill** |
+| HPA | k6, 200 VUs: 2 → 6 pods in ~45s, scaled down after the 2-min window; **986,884 requests, 0 failed, p95 19 ms** |
+| Monitoring | kube-prometheus-stack: 3 targets up, 4 alert rules loaded, Grafana dashboard provisioned |
+| CI workflow, Slack against a real workspace, Langfuse cloud, Supabase storage driver in k8s | written, **not yet run** |
 
 ---
 
 ## Notes on scope
 
-This is a portfolio project built to production shape, not a production deployment. Some deliberate simplifications: authentication uses a network round-trip to validate tokens (local signature verification is the documented scale-up path); local development uses Docker Postgres while the deployed environment uses Supabase; and the domain is motor insurance specifically to keep it clear of health data and HIPAA scope. Design decisions and their tradeoffs are documented in `DECISIONS.md`.
+This is a portfolio project built to production shape, not a production deployment. Deliberate simplifications: token validation is a network round trip (local JWT verification is the scale path); notifications use an in-process event bus (a durable queue is sprint 2); the local Postgres in Helm stands in for a managed DB. Motor insurance keeps it clear of health data and HIPAA scope. Every tradeoff is in [`DECISIONS.md`](DECISIONS.md).

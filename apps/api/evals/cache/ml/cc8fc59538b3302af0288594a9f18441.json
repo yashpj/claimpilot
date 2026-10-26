@@ -1,0 +1,17 @@
+{
+ "modelVersion": "yolov11n-car-damage@hf:vineetsarpal",
+ "detections": [
+  [
+   {
+    "class": "Front-windscreen-damage",
+    "confidence": 0.2351,
+    "bbox": [
+     569.3,
+     57,
+     959.9,
+     647.9
+    ]
+   }
+  ]
+ ]
+}

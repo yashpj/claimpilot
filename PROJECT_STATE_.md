@@ -150,17 +150,39 @@ LangGraph claims agent working end to end in the browser: type message → agent
 - **Coverage window is real:** manually flipping a policy to active sets `coverage_start=now()`, so a past incident date fails the window check. Test with an in-window incident date.
 - **Circular import gotcha:** `CHECKPOINTER` symbol moved to its own `agent.tokens.ts` — module↔service circular import left it undefined at injection (`?` at index 0 in Nest error). Injection tokens (Symbols) must be VALUE imports, never `import type`.
 
-### Remaining phases (from spec §6)
+### Phases 4–12 — BUILT on branch `feat/phase4-to-12` (2026-10-19) ✅
 
-4. Days 7–9 — VLM consistency analysis + fraud checks + triage node
-5. Days 10–11 — Admin review dashboard + decision flow
-6. Days 12–13 — Python ml-service (YOLOv8), wire cross-check
-7. Days 14–15 — Langfuse + golden dataset + eval script + metrics
-8. Day 16 — GitHub Actions with eval gate; images to GHCR by SHA
-9. Day 17 — k3d + raw manifests, then Helm
-10. Day 18 — HPA + k6, rolling update + rollback drill, PDB, startupProbe
-11. Day 19 — kube-prometheus-stack, Grafana, alert → Slack; Slack review bot
-12. Days 20–22 — Buffer, README, DECISIONS.md, demo video, seed script
+Full detail: `DECISIONS.md` (every choice + why). Summary:
+
+- **4 Agent:** START router by `phase`; nodes intake → collect_documents → consistency (VLM ∥ ml-service, cross-check) → fraud_checks → triage_claim; followup (dispute ⇒ priority), reopen (more info ⇒ re-analysis), closed. Triage rules as data in `packages/shared/src/triage.ts`. Uploads endpoint (sha256, EXIF). Per-claim advisory lock. Append-only trigger. Assessment idempotent via runId PK.
+- **5 Reviews:** `/admin` API + UI (queue, detail, decide, metrics), RolesGuard, overturn flag, FOR UPDATE double-decision guard, reconcile phase from claims.status.
+- **6 ml-service:** FastAPI + YOLO11n detector (no licensed YOLOv8 detector exists, DECISIONS ⚠️). Port **8010** locally.
+- **7 Observability + evals:** Langfuse tracer (no-op without keys), Prometheus on internal :9464, golden set (22 cases), record/replay eval gate, LLM-as-judge (4/4 pass).
+- **8 CI:** `.github/workflows/ci.yml` (lint → typecheck → unit → int → eval gate → GHCR by SHA), `live-evals.yml`.
+- **9–11:** raw manifests, Helm chart (HPA, PDB, probes, startupProbe, migrations hook, Traefik), kube-prometheus values + dashboard + alerts, k6, rollback drill script, Slack bot (Bolt custom receiver).
+- **12:** `pnpm seed` (real graph via cassettes), DECISIONS.md, README.
+
+### Not yet verified (do next)
+- [ ] Run CI on GitHub (push branch, open PR) — workflow never executed.
+- [x] k3d live deploy + rollback drill + k6/HPA demo + kube-prometheus-stack (2026-10-23; results in README "Verification status").
+- [x] Build ml-service + web images locally (ml image 2.45 GB uncompressed, CPU torch).
+- [ ] Slack app in a real workspace (bot token, signing secret, `SLACK_REVIEWER_MAP`, interactivity URL → `/slack/events`).
+- [ ] Langfuse cloud keys → see traces.
+- [ ] Supabase: `SUPABASE_SERVICE_ROLE_KEY` + bucket `claim-documents` for STORAGE_DRIVER=supabase; run migrations 0001/0002 on Supabase (session pooler).
+- [ ] Redeploy Render/Vercel (new env vars: GEMINI_VISION_MODEL, STORAGE_DRIVER, ML_SERVICE_URL…).
+- [ ] Demo video. Phase 4–12 interview questions.
+
+### Hard-won lessons (Phases 4–12)
+- **LangGraph node names can't equal state channel names** (`documents`, `triage`) — the reason the old graph only wired intake.
+- **Gemini free tier:** `gemini-flash-latest` = **20 requests/DAY**; flash-lite = 15/min. Latency 10–20s/call. ⇒ flash-lite for everything, chosen by eval; evals pace live calls; cassettes make CI independent of quota.
+- **zsh:** `$m:generateContent` is a variable *modifier* (`:g`) — use `${m}`.
+- **Port collisions again:** Docker Desktop holds `*:8000` → ml-service on 8010 (same trap as Postgres 5432).
+- **pnpm honours `packageManager`** inside the repo (9.0.0) — the lockfile is pnpm 9's; don't bump casually.
+- **`@nestjs/event-emitter` v12 is ESM-only** → breaks Jest/CJS; pinned v3.
+- **Disk full ⇒ Docker hangs** (I/O errors, daemon unresponsive). A torch image build is ~2–3 GB. Check `df -h` before building ML images.
+- **Evals found a wrong golden label** (left vs right headlight) — fix data, not the model.
+- **`k3d image import` copies images into every node** → use the k3d registry (`infra/k8s/k3d-up.sh`). Docker.raw grows and doesn't shrink quickly.
+- **Local cluster:** `infra/k8s/k3d-up.sh` → `create-secrets.sh` → `deploy.sh --set api.config.STORAGE_DRIVER=local --set api.config.LOCAL_STORAGE_DIR=/tmp/uploads`. App http://claimpilot.localhost:8081, Grafana http://grafana.localhost:8081 (admin / claimpilot-local). Tear down: `k3d cluster delete claimpilot`.
 
 ## Concepts covered (don't re-teach unless asked)
 

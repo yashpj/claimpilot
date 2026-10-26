@@ -1,0 +1,19 @@
+{
+ "value": {
+  "is_vehicle": true,
+  "damage_locations": [
+   "windshield"
+  ],
+  "severity_estimate": "severe",
+  "matches_description": true,
+  "flags": [],
+  "confidence": 1,
+  "summary": "The photo shows the vehicle's windshield is completely shattered, matching the customer's description."
+ },
+ "usage": {
+  "inputTokens": 1403,
+  "outputTokens": 89
+ },
+ "model": "gemini-flash-lite-latest",
+ "latencyMs": 1043
+}

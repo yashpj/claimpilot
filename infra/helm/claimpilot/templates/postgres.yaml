@@ -1,0 +1,62 @@
+{{- if .Values.postgres.enabled }}
+{{- $ctx := dict "root" . "name" "postgres" -}}
+# Local-cluster Postgres. StatefulSet (stable identity + its own PVC), not a
+# Deployment. In a real environment: a managed DB (Supabase/Neon/RDS),
+# postgres.enabled=false, DATABASE_URL in the api secret.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  labels: {{- include "cp.labels" $ctx | nindent 4 }}
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels: {{- include "cp.selector" $ctx | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "cp.labels" $ctx | nindent 8 }}
+    spec:
+      securityContext:
+        fsGroup: 70
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}
+          ports:
+            - { name: pg, containerPort: 5432 }
+          env:
+            - { name: POSTGRES_USER, value: claimpilot }
+            - { name: POSTGRES_DB, value: claimpilot }
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.existingSecrets.postgres }}, key: POSTGRES_PASSWORD }
+          resources: {{- toYaml .Values.postgres.resources | nindent 12 }}
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "claimpilot"] }
+            periodSeconds: 5
+          livenessProbe:
+            exec: { command: ["pg_isready", "-U", "claimpilot"] }
+            periodSeconds: 15
+            failureThreshold: 6
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: {{ .Values.postgres.storage }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels: {{- include "cp.labels" $ctx | nindent 4 }}
+spec:
+  selector: {{- include "cp.selector" $ctx | nindent 4 }}
+  ports:
+    - { name: pg, port: 5432, targetPort: pg }
+{{- end }}

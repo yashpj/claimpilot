@@ -1,0 +1,21 @@
+{
+ "value": {
+  "is_vehicle": true,
+  "damage_locations": [
+   "front bumper",
+   "front end",
+   "front left headlight"
+  ],
+  "severity_estimate": "severe",
+  "matches_description": false,
+  "flags": [],
+  "confidence": 1,
+  "summary": "The photo shows severe front-end damage from a collision with a tree, which contradicts the customer's description of rear-bumper damage."
+ },
+ "usage": {
+  "inputTokens": 1405,
+  "outputTokens": 111
+ },
+ "model": "gemini-flash-lite-latest",
+ "latencyMs": 1168
+}
